@@ -1,0 +1,32 @@
+[package]
+name = "brain-dump"
+version = "0.1.0"
+description = "Voice capture → Supabase → Notion triage agent"
+authors = ["mz"]
+edition = "2021"
+
+[lib]
+name = "brain_dump_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.15"
+enigo = "0.2"
+reqwest = { version = "0.12", features = ["multipart", "json", "stream"] }
+hound = "3.5"
+tokio = { version = "1", features = ["full"] }
+dirs = "6"
+arboard = "3"
+futures-util = "0.3"
+chrono = { version = "0.4", features = ["serde"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_ProcessStatus"] }

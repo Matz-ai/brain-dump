@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        padding: 0 8px;
+      }
+      .pill {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: rgba(30, 30, 30, 0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        color: #ddd;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.2px;
+        white-space: nowrap;
+        transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #666;
+        box-shadow: 0 0 0 0 transparent;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+      }
+      /* Ready : pill discret */
+      .pill.ready { opacity: 0.55; }
+      .pill.ready .dot { background: #4caf50; }
+
+      /* Recording : rouge pulsant */
+      .pill.recording {
+        background: rgba(244, 67, 54, 0.95);
+        border-color: rgba(244, 67, 54, 0.6);
+        color: #fff;
+        animation: pulse 1.0s ease-in-out infinite;
+      }
+      .pill.recording .dot {
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
+      }
+
+      /* Transcribing : orange */
+      .pill.transcribing {
+        background: rgba(255, 152, 0, 0.95);
+        border-color: rgba(255, 152, 0, 0.6);
+        color: #fff;
+      }
+      .pill.transcribing .dot {
+        background: #fff;
+        animation: spin 1s linear infinite;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: transparent;
+        box-sizing: border-box;
+      }
+
+      /* Pasted : vert flash */
+      .pill.pasted {
+        background: rgba(76, 175, 80, 0.95);
+        border-color: rgba(76, 175, 80, 0.6);
+        color: #fff;
+        transform: scale(1.05);
+      }
+      .pill.pasted .dot { background: #fff; }
+
+      /* Failed : rouge sombre */
+      .pill.failed {
+        background: rgba(120, 30, 30, 0.95);
+        border-color: rgba(244, 67, 54, 0.4);
+        color: #fff;
+      }
+      .pill.failed .dot { background: #ff5252; }
+
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.04); }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="pill ready" id="pill">
+      <span class="dot" id="dot"></span>
+      <span id="label">Prêt</span>
+    </div>
+
+    <script type="module">
+      import { listen } from "https://esm.sh/@tauri-apps/api@2/event";
+
+      const pill = document.getElementById("pill");
+      const label = document.getElementById("label");
+
+      function setState(cls, text) {
+        pill.className = `pill ${cls}`;
+        label.textContent = text;
+      }
+
+      let pasteTimer = null;
+      function flashPasted() {
+        if (pasteTimer) clearTimeout(pasteTimer);
+        setState("pasted", "✓ Collé");
+        pasteTimer = setTimeout(() => setState("ready", "Prêt"), 1800);
+      }
+      function flashFailed() {
+        if (pasteTimer) clearTimeout(pasteTimer);
+        setState("failed", "✗ Échec");
+        pasteTimer = setTimeout(() => setState("ready", "Prêt"), 2500);
+      }
+
+      listen("recording-state", (event) => {
+        const s = event.payload;
+        if (s === "Recording") setState("recording", "● REC");
+        else if (s === "Transcribing") setState("transcribing", "Transcrit…");
+        else if (s === "Ready" && !pill.classList.contains("pasted") && !pill.classList.contains("failed")) {
+          setState("ready", "Prêt");
+        }
+      });
+
+      listen("paste-done", () => flashPasted());
+      listen("paste-failed", () => flashFailed());
+    </script>
+  </body>
+</html>

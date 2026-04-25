@@ -1,0 +1,11 @@
+CREDENTIALS.md
+cowork-prompt.md
+.env
+.env.local
+brain-dump/node_modules/
+brain-dump/dist/
+brain-dump/src-tauri/target/
+brain-dump/src-tauri/gen/
+
+# Claude Code session-local state
+.claude/settings.local.json
