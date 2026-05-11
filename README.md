@@ -68,27 +68,116 @@ Une seule sortie : table `notes` Supabase, triagée nuitamment vers tes bases No
 
 ## Setup
 
-### Quick install (recommandé)
+### Installation pas-à-pas (Windows, débutant)
 
-1. Clone le repo.
-2. Double-clic sur `INSTALL.bat` à la racine (clic droit → *Exécuter en tant qu'administrateur* si VS Build Tools n'est pas déjà installé).
-3. Attends 5-20 min (la première fois, il installe Node, Rust, MSVC Build Tools, WebView2, puis fait `npm install` et compile le binaire Tauri).
-4. Lance l'app produite dans `brain-dump/src-tauri/target/release/` → Settings → renseigne ta clé Groq, ton URL + anon key Supabase.
+> Suis les étapes dans l'ordre. Aucune connaissance préalable nécessaire. Compte environ **30 min** au total (dont 5-20 min de compilation que l'ordi fait tout seul).
 
-Options :
-- `INSTALL.bat -SkipBuild` : prépare l'environnement sans compiler.
-- `INSTALL.bat -DevRun` : finit par `npm run tauri dev` (hot-reload) au lieu d'un build release.
+#### 1. Ouvrir PowerShell
 
-### Setup manuel
+Appuie sur la touche **Windows**, tape `powershell`, et lance **Windows PowerShell**. Une fenêtre noire/bleue s'ouvre — c'est ton terminal. Tout ce qui suit se tape là-dedans.
 
-Voir [`SETUP.md`](SETUP.md) pour le pas-à-pas (winget, Build Tools, Tauri build, premières config dans l'app).
+> Astuce : clic droit dans la fenêtre = coller (au lieu de Ctrl+V).
 
-Pré-requis :
-- Windows 10/11
-- Node 20+, Rust + MSVC Build Tools
-- Compte Groq (free tier)
-- Projet Supabase (la table est dans la spec)
-- Workspace Notion + intégration MCP
+#### 2. Installer Git (si ce n'est pas déjà fait)
+
+Tape la commande suivante, puis **Entrée** :
+
+```powershell
+winget install -e --id Git.Git --accept-source-agreements --accept-package-agreements
+```
+
+Quand c'est terminé, **ferme** la fenêtre PowerShell et **rouvre-en une nouvelle** (sinon `git` ne sera pas reconnu). Vérifie :
+
+```powershell
+git --version
+```
+
+Tu dois voir quelque chose comme `git version 2.x.x`.
+
+#### 3. Cloner le repo
+
+Place-toi dans le dossier où tu veux installer le projet (ici, `Documents`) puis clone :
+
+```powershell
+cd $HOME\Documents
+git clone https://github.com/Matz-ai/brain-dump.git
+cd brain-dump
+```
+
+> Évite de cloner dans un dossier OneDrive synchronisé — ça ralentit énormément la compilation et la sync est bruyante. `Documents` (hors OneDrive), ou mieux `C:\dev\` que tu crées à la racine.
+
+#### 4. Lancer l'installeur tout-en-un
+
+Toujours dans la même fenêtre PowerShell (et bien dans le dossier `brain-dump`) :
+
+```powershell
+.\INSTALL.bat
+```
+
+> **Si le script demande des droits administrateur** (popup UAC pour installer Visual Studio Build Tools), accepte. Sinon, ferme la fenêtre, **clic droit sur `INSTALL.bat` → Exécuter en tant qu'administrateur**.
+
+Le script installe automatiquement :
+
+- Node.js 20 LTS
+- Rust + toolchain MSVC
+- Visual Studio Build Tools 2022 (le plus long — 10-15 min)
+- WebView2 Runtime
+- Les dépendances npm
+- Compile le binaire de l'application
+
+Va boire un café. Quand c'est fini tu verras `Termine` en vert.
+
+#### 5. Lancer l'application
+
+Deux façons :
+
+**A — Lancer le binaire compilé** (production, recommandé) :
+
+Ouvre l'explorateur Windows et navigue jusqu'à :
+
+```text
+brain-dump\brain-dump\src-tauri\target\release\
+```
+
+Double-clic sur `Brain Dump.exe`.
+
+**B — Lancer en mode développeur** (hot-reload, utile pour bidouiller) :
+
+Dans PowerShell, depuis la racine `brain-dump\` :
+
+```powershell
+cd brain-dump
+npm run tauri dev
+```
+
+> Oui, il y a bien deux fois `brain-dump` : la racine du repo s'appelle `brain-dump`, et elle contient un sous-dossier `brain-dump` (l'app Tauri elle-même).
+
+#### 6. Configurer l'app
+
+Une fois l'app ouverte, va dans **Settings** et remplis :
+
+- **General → Language** : `Français`
+- **Groq → API Key** : ta clé Groq ([console.groq.com](https://console.groq.com))
+- **Storage → Supabase URL** + **Anon Key** : depuis ton projet Supabase
+
+Teste : presse `Ctrl+Shift+Space`, parle 3 secondes, re-presse `Ctrl+Shift+Space` pour stopper. Le texte doit être collé dans l'app active.
+
+---
+
+### Options de l'installeur
+
+- `.\INSTALL.bat -SkipBuild` — prépare l'environnement mais ne compile pas (utile si tu veux build toi-même après).
+- `.\INSTALL.bat -DevRun` — enchaîne directement sur `npm run tauri dev` au lieu du build release.
+
+### Pré-requis qu'il faut quand même avoir
+
+- Windows 10 ou 11 (récent, avec `winget` disponible — c'est par défaut sur Win11 et Win10 récent).
+- Connexion internet.
+- Un compte Groq (gratuit) + un projet Supabase (gratuit). La table SQL à créer dans Supabase est dans [`brain-dump-spec.md`](brain-dump-spec.md).
+
+### Setup manuel (avancé)
+
+Si tu préfères tout faire à la main, voir [`SETUP.md`](SETUP.md).
 
 ## Triage Cowork
 
