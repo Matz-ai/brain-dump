@@ -104,8 +104,6 @@ git clone https://github.com/Matz-ai/brain-dump.git
 cd brain-dump
 ```
 
-> Évite de cloner dans un dossier OneDrive synchronisé — ça ralentit énormément la compilation et la sync est bruyante. `Documents` (hors OneDrive), ou mieux `C:\dev\` que tu crées à la racine.
-
 #### 4. Lancer l'installeur tout-en-un
 
 Toujours dans la même fenêtre PowerShell (et bien dans le dossier `brain-dump`) :
@@ -141,6 +139,8 @@ brain-dump\brain-dump\src-tauri\target\release\
 
 Double-clic sur `Brain Dump.exe`.
 
+> **Pro-tip — épingler pour ne plus jamais avoir à chercher** : une fois l'app lancée, clic droit sur son icône **dans la barre des tâches → *Épingler à la barre des tâches***. Ou alors clic droit directement sur `Brain Dump.exe` → ***Épingler au menu Démarrer***. Tu pourras la relancer en un clic depuis la barre des tâches ou la touche Windows.
+
 **B — Lancer en mode développeur** (hot-reload, utile pour bidouiller) :
 
 Dans PowerShell, depuis la racine `brain-dump\` :
@@ -154,13 +154,22 @@ npm run tauri dev
 
 #### 6. Configurer l'app
 
-Une fois l'app ouverte, va dans **Settings** et remplis :
+Une fois l'app ouverte, va dans **Settings**.
 
-- **General → Language** : `Français`
-- **Groq → API Key** : ta clé Groq ([console.groq.com](https://console.groq.com))
-- **Storage → Supabase URL** + **Anon Key** : depuis ton projet Supabase
+**Le seul truc obligatoire** pour que l'app marche, c'est ta **clé API Groq** (gratuite) :
 
-Teste : presse `Ctrl+Shift+Space`, parle 3 secondes, re-presse `Ctrl+Shift+Space` pour stopper. Le texte doit être collé dans l'app active.
+- Crée un compte sur [console.groq.com](https://console.groq.com), génère une API key, et colle-la dans **Settings → Groq → API Key**.
+- Mets aussi **General → Language** sur `Français`.
+
+C'est tout. Tu peux déjà tester : presse `Ctrl+Shift+Space`, parle 3 secondes, re-presse `Ctrl+Shift+Space` pour stopper. Le texte transcrit est collé dans l'app active.
+
+**Optionnel — pour avoir la persistance en base** (sinon les notes ne sont collées que dans l'app courante, rien n'est sauvegardé) :
+
+- Crée un projet [Supabase](https://supabase.com) gratuit, exécute la SQL fournie dans [`brain-dump-spec.md`](brain-dump-spec.md) pour créer la table `notes`.
+- Renseigne **Storage → Supabase URL** et **Anon Key** dans Settings.
+- Utilise alors `Ctrl+Shift+V` (au lieu de `Ctrl+Shift+Space`) pour coller **et** sauvegarder en base.
+
+Sans Supabase, l'app reste utile comme dictée vocale instantanée — c'est juste qu'aucune note n'est conservée pour le triage Cowork nocturne.
 
 ---
 
@@ -173,7 +182,7 @@ Teste : presse `Ctrl+Shift+Space`, parle 3 secondes, re-presse `Ctrl+Shift+Space
 
 - Windows 10 ou 11 (récent, avec `winget` disponible — c'est par défaut sur Win11 et Win10 récent).
 - Connexion internet.
-- Un compte Groq (gratuit) + un projet Supabase (gratuit). La table SQL à créer dans Supabase est dans [`brain-dump-spec.md`](brain-dump-spec.md).
+- Une clé API Groq (gratuit). Supabase est **optionnel** mais nécessaire si tu veux conserver tes notes pour le triage automatique.
 
 ### Setup manuel (avancé)
 
