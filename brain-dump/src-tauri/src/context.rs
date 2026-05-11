@@ -57,7 +57,40 @@ pub fn capture_active_context() -> Value {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(target_os = "macos")]
+pub fn capture_active_context() -> Value {
+    let script = r#"
+        set appName to ""
+        set windowTitle to ""
+        tell application "System Events"
+            set frontApp to first process whose frontmost is true
+            set appName to name of frontApp
+            try
+                set windowTitle to name of first window of frontApp
+            end try
+        end tell
+        return appName & "|" & windowTitle
+    "#;
+
+    let output = std::process::Command::new("osascript")
+        .args(["-e", script])
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let result = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let parts: Vec<&str> = result.splitn(2, '|').collect();
+            json!({
+                "os": "macos",
+                "app": parts.get(0).unwrap_or(&"").trim(),
+                "window": parts.get(1).unwrap_or(&"").trim(),
+            })
+        }
+        _ => json!({ "os": "macos" }),
+    }
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 pub fn capture_active_context() -> Value {
     json!({ "os": "other" })
 }

@@ -7,7 +7,7 @@ Capture vocale → Supabase → Notion. Un "second cerveau" qui ne perd rien.
 Tu as une pensée → tu appuies sur une hotkey → tu parles → la transcription part en base de données. Le soir, un agent Claude Cowork lit la table, classe chaque note (task / idée / journal / noise) et écrit dans Notion. Toi tu te lèves le matin, tout est trié.
 
 Deux entrées possibles :
-- **Desktop (Windows)** : app Tauri avec hotkeys globales, Whisper via Groq free tier
+- **Desktop (Windows / macOS)** : app Tauri avec hotkeys globales, Whisper via Groq free tier
 - **Mobile (Telegram)** : bot n8n qui ingère les vocaux où que tu sois
 
 Une seule sortie : table `notes` Supabase, triagée nuitamment vers tes bases Notion.
@@ -16,14 +16,14 @@ Une seule sortie : table `notes` Supabase, triagée nuitamment vers tes bases No
 
 - Quasi-tous les outils de capture vocale soit te collent en presse-papier sans rien sauver, soit te poussent en cloud propriétaire. Aucun ne combine *capture instantanée + DB persistante + triage agentique*.
 - Free tier strict : Groq Whisper (2000 req/jour), Supabase free, Notion free. Zero coût récurrent tant que tu restes solo.
-- Windows uniquement à dessein : pas de cross-platform fluff.
+- Windows et macOS supportés (même codebase Tauri, seul l'installeur diffère).
 
 ## Architecture
 
 ```
 ┌─────────────────┐     ┌─────────────────┐
 │  Desktop Tauri  │     │  Telegram bot   │
-│  (Win, Rust+TS) │     │  (n8n workflow) │
+│ (Win/Mac,Rust+TS│     │  (n8n workflow) │
 └────────┬────────┘     └────────┬────────┘
          │                       │
          │  Whisper transcribe   │
@@ -170,6 +170,61 @@ C'est tout. Tu peux déjà tester : presse `Ctrl+Shift+Space`, parle 3 secondes,
 - Utilise alors `Ctrl+Shift+V` (au lieu de `Ctrl+Shift+Space`) pour coller **et** sauvegarder en base.
 
 Sans Supabase, l'app reste utile comme dictée vocale instantanée — c'est juste qu'aucune note n'est conservée pour le triage Cowork nocturne.
+
+---
+
+---
+
+### Installation (macOS)
+
+> Compte environ **20 min** (dont 5-15 min de compilation).
+
+#### 1. Ouvrir un terminal
+
+Appuie sur `Cmd+Space`, tape `Terminal`, lance-le.
+
+#### 2. Cloner le repo
+
+```bash
+cd ~/Documents
+git clone https://github.com/Matz-ai/brain-dump.git
+cd brain-dump
+```
+
+#### 3. Lancer l'installeur
+
+```bash
+chmod +x install.sh && ./install.sh
+```
+
+Le script installe automatiquement :
+
+- Xcode Command Line Tools (si absent — une popup apparaît, accepte puis re-appuie sur Entrée)
+- Homebrew
+- Node.js 20
+- Rust
+- Les dépendances npm
+- Compile le binaire de l'application
+
+Va boire un café. Quand c'est fini tu verras `=== Terminé ===` en vert.
+
+#### 4. Lancer l'application
+
+Ouvre le Finder et navigue jusqu'à :
+
+```
+brain-dump/brain-dump/src-tauri/target/release/bundle/macos/
+```
+
+Double-clique sur `Brain Dump.app`.
+
+> **Permissions macOS :** Au premier lancement, macOS demandera l'accès au **Microphone** et à l'**Accessibilité** (pour détecter l'app active et simuler Cmd+V). Accepte les deux dans Réglages Système → Confidentialité.
+
+> **Si macOS bloque l'app "développeur non identifié"** : clic droit sur `Brain Dump.app` → Ouvrir → Ouvrir quand même.
+
+#### 5. Configurer l'app
+
+Même chose que Windows (voir section ci-dessus), avec une différence : le raccourci de collage est **Cmd+V** au lieu de Ctrl+V, mais les hotkeys d'enregistrement dans Settings restent configurables librement.
 
 ---
 
