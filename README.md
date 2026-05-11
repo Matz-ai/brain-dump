@@ -68,7 +68,20 @@ Une seule sortie : table `notes` Supabase, triagée nuitamment vers tes bases No
 
 ## Setup
 
-Voir [`SETUP.md`](SETUP.md) pour le pas-à-pas Windows (winget, Build Tools, Tauri build, premières config dans l'app).
+### Quick install (recommandé)
+
+1. Clone le repo.
+2. Double-clic sur `INSTALL.bat` à la racine (clic droit → *Exécuter en tant qu'administrateur* si VS Build Tools n'est pas déjà installé).
+3. Attends 5-20 min (la première fois, il installe Node, Rust, MSVC Build Tools, WebView2, puis fait `npm install` et compile le binaire Tauri).
+4. Lance l'app produite dans `brain-dump/src-tauri/target/release/` → Settings → renseigne ta clé Groq, ton URL + anon key Supabase.
+
+Options :
+- `INSTALL.bat -SkipBuild` : prépare l'environnement sans compiler.
+- `INSTALL.bat -DevRun` : finit par `npm run tauri dev` (hot-reload) au lieu d'un build release.
+
+### Setup manuel
+
+Voir [`SETUP.md`](SETUP.md) pour le pas-à-pas (winget, Build Tools, Tauri build, premières config dans l'app).
 
 Pré-requis :
 - Windows 10/11
