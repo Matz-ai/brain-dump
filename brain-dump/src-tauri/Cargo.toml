@@ -1,6 +1,6 @@
 [package]
 name = "brain-dump"
-version = "0.1.0"
+version = "0.2.0"
 description = "Voice capture → Supabase → Notion triage agent"
 authors = ["mz"]
 edition = "2021"

@@ -43,10 +43,16 @@ const hotkeyPasteOnlyBtn = document.getElementById("hotkey-paste-only-btn") as H
 const hotkeyDbPasteBtn = document.getElementById("hotkey-db-paste-btn") as HTMLButtonElement;
 const modelTurbo = document.getElementById("model-turbo")!;
 const modelLarge = document.getElementById("model-large")!;
-const vocabularyTA = document.getElementById("vocabulary") as HTMLTextAreaElement;
+const vocabChips = document.getElementById("vocab-chips")!;
+const vocabInput = document.getElementById("vocab-input") as HTMLInputElement;
 const vocabCounter = document.getElementById("vocab-counter")!;
+let vocabWords: string[] = [];
 const quotaBadge = document.getElementById("quota-badge")!;
 const quotaText = document.getElementById("quota-text")!;
+const overlayShowBtn = document.getElementById("overlay-show-btn") as HTMLButtonElement;
+const overlayHideBtn = document.getElementById("overlay-hide-btn") as HTMLButtonElement;
+const overlayRepositionBtn = document.getElementById("overlay-reposition-btn") as HTMLButtonElement;
+const quitAppBtn = document.getElementById("quit-app-btn") as HTMLButtonElement;
 
 // Section navigation
 const navItems = document.querySelectorAll(".nav-item");
@@ -102,8 +108,7 @@ async function loadSettings() {
   setRecordingMode(currentSettings.recordingMode);
   setWhisperModel(currentSettings.whisperModel);
 
-  vocabularyTA.value = currentSettings.vocabulary;
-  updateVocabCounter();
+  loadVocab(currentSettings.vocabulary);
 
   hotkeyPasteOnlyBtn.textContent = formatHotkey(currentSettings.hotkeyPasteOnly);
   hotkeyDbPasteBtn.textContent = formatHotkey(currentSettings.hotkeyDbPaste);
@@ -115,13 +120,79 @@ function setWhisperModel(model: string) {
   modelLarge.classList.toggle("active", model === "whisper-large-v3");
 }
 
+function parseVocab(raw: string): string[] {
+  return raw
+    .split(/[,\n]/)
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0);
+}
+
+function loadVocab(raw: string) {
+  vocabWords = parseVocab(raw);
+  renderVocab();
+}
+
+function renderVocab() {
+  vocabChips.querySelectorAll(".vocab-chip").forEach((c) => c.remove());
+  for (const word of vocabWords) {
+    const chip = document.createElement("span");
+    chip.className = "vocab-chip";
+    const text = document.createElement("span");
+    text.className = "vocab-chip-text";
+    text.textContent = word;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "vocab-chip-remove";
+    remove.setAttribute("aria-label", `Supprimer ${word}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", (e) => {
+      e.stopPropagation();
+      removeVocabWord(word);
+    });
+    chip.appendChild(text);
+    chip.appendChild(remove);
+    vocabChips.insertBefore(chip, vocabInput);
+  }
+  updateVocabCounter();
+}
+
+function addVocabWord(raw: string) {
+  const word = raw.trim();
+  if (!word) return;
+  // Accept multiple words separated by comma in one paste
+  const parts = parseVocab(word);
+  let changed = false;
+  for (const p of parts) {
+    if (!vocabWords.some((w) => w.toLowerCase() === p.toLowerCase())) {
+      vocabWords.push(p);
+      changed = true;
+    }
+  }
+  if (changed) {
+    renderVocab();
+    saveSettings();
+  }
+}
+
+function removeVocabWord(word: string) {
+  const before = vocabWords.length;
+  vocabWords = vocabWords.filter((w) => w !== word);
+  if (vocabWords.length !== before) {
+    renderVocab();
+    saveSettings();
+  }
+}
+
+function serializeVocab(): string {
+  return vocabWords.join(", ");
+}
+
 function updateVocabCounter() {
-  const text = vocabularyTA.value.trim();
-  const wordCount = text === "" ? 0 : text.split(/\s+|,/).filter(Boolean).length;
-  vocabCounter.textContent = `${wordCount} mots`;
+  const count = vocabWords.length;
+  vocabCounter.textContent = `${count} mot${count > 1 ? "s" : ""}`;
   vocabCounter.classList.remove("warn", "over");
-  if (wordCount > 200) vocabCounter.classList.add("over");
-  else if (wordCount > 150) vocabCounter.classList.add("warn");
+  if (count > 200) vocabCounter.classList.add("over");
+  else if (count > 150) vocabCounter.classList.add("warn");
 }
 
 function formatHotkey(h: string): string {
@@ -141,7 +212,7 @@ async function saveSettings() {
   currentSettings.supabaseUrl = supabaseUrl.value;
   currentSettings.supabaseAnonKey = supabaseKey.value;
   currentSettings.captureContext = captureContextCheck.checked;
-  currentSettings.vocabulary = vocabularyTA.value;
+  currentSettings.vocabulary = serializeVocab();
   await invoke("save_settings", { settings: currentSettings });
 }
 
@@ -266,8 +337,24 @@ modeToggle.addEventListener("click", () => { setRecordingMode("toggle"); saveSet
 modePtt.addEventListener("click", () => { setRecordingMode("push-to-talk"); saveSettings(); });
 modelTurbo.addEventListener("click", () => { setWhisperModel("whisper-large-v3-turbo"); saveSettings(); });
 modelLarge.addEventListener("click", () => { setWhisperModel("whisper-large-v3"); saveSettings(); });
-vocabularyTA.addEventListener("input", updateVocabCounter);
-vocabularyTA.addEventListener("change", saveSettings);
+vocabInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" || e.key === ",") {
+    e.preventDefault();
+    addVocabWord(vocabInput.value);
+    vocabInput.value = "";
+  } else if (e.key === "Backspace" && vocabInput.value === "" && vocabWords.length > 0) {
+    removeVocabWord(vocabWords[vocabWords.length - 1]);
+  }
+});
+vocabInput.addEventListener("blur", () => {
+  if (vocabInput.value.trim()) {
+    addVocabWord(vocabInput.value);
+    vocabInput.value = "";
+  }
+});
+vocabChips.addEventListener("click", (e) => {
+  if (e.target === vocabChips) vocabInput.focus();
+});
 
 // State events
 listen<string>("recording-state", (event) => {
@@ -300,7 +387,62 @@ listen<QuotaStatus>("quota-blocked", (event) => {
   );
 });
 
+// ── Overlay controls ───────────────────────────────────
+function setOverlayVisibleUI(visible: boolean) {
+  overlayShowBtn.classList.toggle("active", visible);
+  overlayHideBtn.classList.toggle("active", !visible);
+}
+
+overlayShowBtn.addEventListener("click", async () => {
+  try {
+    await invoke("set_overlay_visible", { visible: true });
+    setOverlayVisibleUI(true);
+  } catch (e) {
+    console.error("set_overlay_visible(true) failed:", e);
+  }
+});
+
+overlayHideBtn.addEventListener("click", async () => {
+  try {
+    await invoke("set_overlay_visible", { visible: false });
+    setOverlayVisibleUI(false);
+  } catch (e) {
+    console.error("set_overlay_visible(false) failed:", e);
+  }
+});
+
+overlayRepositionBtn.addEventListener("click", async () => {
+  try {
+    await invoke("reposition_overlay");
+    setOverlayVisibleUI(true);
+    overlayRepositionBtn.disabled = true;
+    overlayRepositionBtn.textContent = "Mode déplacement (10s)…";
+    setTimeout(() => {
+      overlayRepositionBtn.disabled = false;
+      overlayRepositionBtn.textContent = "Repositionner";
+    }, 10000);
+  } catch (e) {
+    console.error("reposition_overlay failed:", e);
+  }
+});
+
+quitAppBtn.addEventListener("click", () => {
+  if (confirm("Quitter Brain Dump ? Le voyant et les hotkeys s'arrêteront.")) {
+    invoke("quit_app");
+  }
+});
+
+async function syncOverlayState() {
+  try {
+    const visible = await invoke<boolean>("get_overlay_visible");
+    setOverlayVisibleUI(visible);
+  } catch (e) {
+    console.error("get_overlay_visible failed:", e);
+  }
+}
+
 // Init
 loadSettings();
 refreshQuota();
+syncOverlayState();
 setInterval(refreshQuota, 30_000);

@@ -60,7 +60,8 @@
           </a>
         </nav>
         <div class="sidebar-footer">
-          <span class="version-text">v0.1.0</span>
+          <button id="quit-app-btn" class="quit-btn" title="Ferme Brain Dump complètement (voyant + hotkeys)">Quitter Brain Dump</button>
+          <span class="version-text">v0.2.0</span>
         </div>
       </aside>
 
@@ -78,6 +79,27 @@
               </div>
               <div class="setting-control">
                 <select id="mic-select"></select>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Voyant flottant</span>
+                <span class="label-hint">Petit indicateur d'état (Prêt / Rec / Transcription) à l'écran</span>
+              </div>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button id="overlay-show-btn" class="toggle-btn active">Afficher</button>
+                  <button id="overlay-hide-btn" class="toggle-btn">Masquer</button>
+                </div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Position du voyant</span>
+                <span class="label-hint">Active le mode déplacement pendant 10s, drag le voyant à l'écran</span>
+              </div>
+              <div class="setting-control">
+                <button id="overlay-reposition-btn">Repositionner</button>
               </div>
             </div>
             <div class="setting-row">
@@ -126,10 +148,19 @@
             <div class="setting-row vocab-row">
               <div class="setting-label">
                 <span class="label-text">Vocabulaire</span>
-                <span class="label-hint">Mots/jargon à reconnaître. Max ~200 mots. Ex: <em>Datanalyse, GREF, brain-dump, Tauri, n8n, Cowork, draft CFR, jungle, mid lane</em></span>
+                <span class="label-hint">Mots/jargon difficiles à reconnaître. Tape un mot puis <kbd>Entrée</kbd>. Max ~200 mots.</span>
               </div>
               <div class="setting-control vocab-control">
-                <textarea id="vocabulary" rows="4" placeholder="Datanalyse, GREF, SADE, brain-dump, typr, n8n, Supabase, Tauri, Cowork…"></textarea>
+                <div id="vocab-chips" class="vocab-chips">
+                  <input
+                    type="text"
+                    id="vocab-input"
+                    class="vocab-input"
+                    placeholder="Ajouter un mot…"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                </div>
                 <span id="vocab-counter" class="vocab-counter">0 mots</span>
               </div>
             </div>

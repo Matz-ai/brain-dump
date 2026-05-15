@@ -33,7 +33,9 @@
         font-weight: 600;
         letter-spacing: 0.2px;
         white-space: nowrap;
-        transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
+        transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, outline-color 0.2s ease;
+        outline: 2px dashed transparent;
+        outline-offset: 3px;
       }
       .dot {
         width: 10px;
@@ -43,11 +45,9 @@
         box-shadow: 0 0 0 0 transparent;
         transition: background 0.25s ease, box-shadow 0.25s ease;
       }
-      /* Ready : pill discret */
       .pill.ready { opacity: 0.55; }
       .pill.ready .dot { background: #4caf50; }
 
-      /* Recording : rouge pulsant */
       .pill.recording {
         background: rgba(244, 67, 54, 0.95);
         border-color: rgba(244, 67, 54, 0.6);
@@ -59,7 +59,6 @@
         box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
       }
 
-      /* Transcribing : orange */
       .pill.transcribing {
         background: rgba(255, 152, 0, 0.95);
         border-color: rgba(255, 152, 0, 0.6);
@@ -73,7 +72,6 @@
         box-sizing: border-box;
       }
 
-      /* Pasted : vert flash */
       .pill.pasted {
         background: rgba(76, 175, 80, 0.95);
         border-color: rgba(76, 175, 80, 0.6);
@@ -82,13 +80,20 @@
       }
       .pill.pasted .dot { background: #fff; }
 
-      /* Failed : rouge sombre */
       .pill.failed {
         background: rgba(120, 30, 30, 0.95);
         border-color: rgba(244, 67, 54, 0.4);
         color: #fff;
       }
       .pill.failed .dot { background: #ff5252; }
+
+      .pill.repositioning {
+        outline-color: #4a9eff;
+        opacity: 1;
+        cursor: grab;
+        animation: dashFlow 1s linear infinite;
+      }
+      .pill.repositioning:active { cursor: grabbing; }
 
       @keyframes pulse {
         0%, 100% { transform: scale(1); }
@@ -97,26 +102,87 @@
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
+      @keyframes dashFlow {
+        from { outline-offset: 3px; }
+        to { outline-offset: 6px; }
+      }
     </style>
   </head>
   <body>
-    <div class="pill ready" id="pill">
+    <div class="pill ready" id="pill" data-tauri-drag-region>
       <span class="dot" id="dot"></span>
       <span id="label">Prêt</span>
     </div>
 
     <script type="module">
+      import { getCurrentWindow, PhysicalPosition } from "https://esm.sh/@tauri-apps/api@2/window";
       import { listen } from "https://esm.sh/@tauri-apps/api@2/event";
 
+      const appWindow = getCurrentWindow();
       const pill = document.getElementById("pill");
       const label = document.getElementById("label");
 
+      // Always click-through (the tray icon is the control surface).
+      appWindow.setIgnoreCursorEvents(true);
+
+      // Restore saved position
+      try {
+        const savedPos = localStorage.getItem("overlay-pos");
+        if (savedPos) {
+          const { x, y } = JSON.parse(savedPos);
+          appWindow.setPosition(new PhysicalPosition(x, y));
+        }
+      } catch {}
+
+      // Persist position on every move
+      appWindow.onMoved((event) => {
+        try {
+          const { x, y } = event.payload;
+          localStorage.setItem("overlay-pos", JSON.stringify({ x, y }));
+        } catch {}
+      });
+
+      // ---- Reposition mode (triggered from tray menu) ----
+      let repositionActive = false;
+      let repositionTimer = null;
+      const REPOSITION_TIMEOUT_MS = 10000;
+
+      async function enterReposition() {
+        repositionActive = true;
+        pill.classList.add("repositioning");
+        await appWindow.setIgnoreCursorEvents(false);
+        if (repositionTimer) clearTimeout(repositionTimer);
+        repositionTimer = setTimeout(exitReposition, REPOSITION_TIMEOUT_MS);
+      }
+
+      async function exitReposition() {
+        if (!repositionActive) return;
+        repositionActive = false;
+        pill.classList.remove("repositioning");
+        if (repositionTimer) {
+          clearTimeout(repositionTimer);
+          repositionTimer = null;
+        }
+        await appWindow.setIgnoreCursorEvents(true);
+      }
+
+      listen("start-reposition", () => enterReposition());
+
+      // After the user drags, exit reposition shortly after mouseup.
+      window.addEventListener("mouseup", () => {
+        if (repositionActive) setTimeout(exitReposition, 400);
+      });
+
+      // ---- State management ----
+      const STATE_CLASSES = ["ready", "recording", "transcribing", "pasted", "failed"];
+      let pasteTimer = null;
+
       function setState(cls, text) {
-        pill.className = `pill ${cls}`;
+        for (const c of STATE_CLASSES) pill.classList.remove(c);
+        pill.classList.add(cls);
         label.textContent = text;
       }
 
-      let pasteTimer = null;
       function flashPasted() {
         if (pasteTimer) clearTimeout(pasteTimer);
         setState("pasted", "✓ Collé");
@@ -132,7 +198,11 @@
         const s = event.payload;
         if (s === "Recording") setState("recording", "● REC");
         else if (s === "Transcribing") setState("transcribing", "Transcrit…");
-        else if (s === "Ready" && !pill.classList.contains("pasted") && !pill.classList.contains("failed")) {
+        else if (
+          s === "Ready" &&
+          !pill.classList.contains("pasted") &&
+          !pill.classList.contains("failed")
+        ) {
           setState("ready", "Prêt");
         }
       });
