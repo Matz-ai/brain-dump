@@ -1,0 +1,44 @@
+# Push a tag like v0.3.1 → builds the signed Windows installer, publishes the GitHub
+# release and its latest.json. Installed apps pick the update up on their own.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: brain-dump/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: brain-dump/src-tauri -> target
+
+      - run: npm ci
+        working-directory: brain-dump
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          projectPath: brain-dump
+          tagName: ${{ github.ref_name }}
+          releaseName: Brain Dump ${{ github.ref_name }}
+          releaseBody: Télécharge le fichier `_x64-setup.exe` ci-dessous. Si Brain Dump est déjà installé, il se met à jour tout seul.
+          releaseDraft: false
+          args: --config src-tauri/tauri.release.conf.json --bundles nsis

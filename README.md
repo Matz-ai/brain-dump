@@ -18,9 +18,11 @@ Tu appuies sur une hotkey, tu parles, la transcription part en base. Le soir, un
 - `Ctrl+Shift+Space` → transcrit + colle (pas de DB)
 - `Ctrl+Shift+V` → transcrit + colle + sauve en DB
 
-**Voyant flottant :** indicateur d'état click-through (Prêt / ● REC / Transcrit…). Géré depuis Settings → General.
+**Voyant flottant :** indicateur d'état click-through (Prêt / J'écoute / Transcription…). Géré depuis l'onglet Voyant.
 
-**Mise à jour :** lance simplement le nouveau `.exe`, upgrade en place, ta config dans `%APPDATA%\com.brain-dump.app\` est préservée.
+**Mise à jour :** automatique à partir de la v0.3.0. L'app vérifie GitHub au démarrage puis toutes les 6 h, télécharge la nouvelle version et l'installe dès que tu ne dictes pas (redémarrage en ~5 s). Ta config (`%APPDATA%\com.brain-dump.app\` : clé, vocabulaire, raccourcis, position du voyant) n'est jamais touchée. Depuis la v0.2.0 ou avant : installe une fois le nouveau `setup.exe` par-dessus, ensuite c'est automatique.
+
+**Publier une version (mainteneur) :** monte `version` dans `brain-dump/src-tauri/tauri.conf.json`, commit, puis `git tag vX.Y.Z && git push origin vX.Y.Z`. La CI construit l'installeur signé et publie la release. La clé de signature est dans `~/.tauri/brain-dump.key` (+ secret GitHub `TAURI_SIGNING_PRIVATE_KEY`) : sans elle, plus aucune mise à jour possible, garde-la en lieu sûr.
 
 ### Build from source (dev)
 

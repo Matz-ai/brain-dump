@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter};
 use crate::audio::AudioRecorder;
 use crate::cleanup::cleanup_text;
 use crate::context;
+use crate::correct_groq;
 use crate::paste::paste_text;
 use crate::quota::{self, CheckResult};
 use crate::settings::Settings;
@@ -146,6 +147,19 @@ impl Recorder {
                 reset_state();
                 return Err(e);
             }
+        };
+
+        // Correction IA optionnelle : en cas d'échec on garde la transcription brute
+        let raw_text = if settings.ai_correction && !raw_text.trim().is_empty() {
+            match correct_groq::correct_text(&settings.groq_api_key, &raw_text, &settings.vocabulary).await {
+                Ok(t) => t,
+                Err(e) => {
+                    eprintln!("[brain-dump] AI correction skipped: {}", e);
+                    raw_text
+                }
+            }
+        } else {
+            raw_text
         };
 
         let cleaned = cleanup_text(&raw_text);

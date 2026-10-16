@@ -1,6 +1,7 @@
 pub mod settings;
 pub mod audio;
 pub mod transcribe_groq;
+pub mod correct_groq;
 pub mod cleanup;
 pub mod paste;
 pub mod recorder;

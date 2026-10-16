@@ -14,6 +14,7 @@ interface Settings {
   captureContext: boolean;
   whisperModel: string;
   vocabulary: string;
+  aiCorrection: boolean;
 }
 
 interface MicDevice {
@@ -37,6 +38,7 @@ const groqKey = document.getElementById("groq-key") as HTMLInputElement;
 const supabaseUrl = document.getElementById("supabase-url") as HTMLInputElement;
 const supabaseKey = document.getElementById("supabase-key") as HTMLInputElement;
 const captureContextCheck = document.getElementById("capture-context") as HTMLInputElement;
+const aiCorrectionCheck = document.getElementById("ai-correction") as HTMLInputElement;
 const modeToggle = document.getElementById("mode-toggle")!;
 const modePtt = document.getElementById("mode-ptt")!;
 const hotkeyPasteOnlyBtn = document.getElementById("hotkey-paste-only-btn") as HTMLButtonElement;
@@ -108,6 +110,7 @@ async function loadSettings() {
   supabaseUrl.value = currentSettings.supabaseUrl;
   supabaseKey.value = currentSettings.supabaseAnonKey;
   captureContextCheck.checked = currentSettings.captureContext;
+  aiCorrectionCheck.checked = currentSettings.aiCorrection;
 
   setRecordingMode(currentSettings.recordingMode);
   setWhisperModel(currentSettings.whisperModel);
@@ -216,6 +219,7 @@ async function saveSettings() {
   currentSettings.supabaseUrl = supabaseUrl.value;
   currentSettings.supabaseAnonKey = supabaseKey.value;
   currentSettings.captureContext = captureContextCheck.checked;
+  currentSettings.aiCorrection = aiCorrectionCheck.checked;
   currentSettings.vocabulary = serializeVocab();
   await invoke("save_settings", { settings: currentSettings });
 }
@@ -338,6 +342,7 @@ groqKey.addEventListener("change", saveSettings);
 supabaseUrl.addEventListener("change", saveSettings);
 supabaseKey.addEventListener("change", saveSettings);
 captureContextCheck.addEventListener("change", saveSettings);
+aiCorrectionCheck.addEventListener("change", saveSettings);
 modeToggle.addEventListener("click", () => { setRecordingMode("toggle"); saveSettings(); });
 modePtt.addEventListener("click", () => { setRecordingMode("push-to-talk"); saveSettings(); });
 modelTurbo.addEventListener("click", () => { setWhisperModel("whisper-large-v3-turbo"); saveSettings(); });

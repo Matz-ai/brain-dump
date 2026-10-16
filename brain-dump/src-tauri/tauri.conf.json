@@ -38,5 +38,16 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEQzI2QjAyMUFFQUMwQUEKUldTcXdPb2FBbXZDN1Y0M3h6NnhWWUlsMmx6dzc0OUdmWm1PUnRZZFFSQlJVSzlNa2hUbUEydXAK",
+      "endpoints": [
+        "https://github.com/Matz-ai/brain-dump/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

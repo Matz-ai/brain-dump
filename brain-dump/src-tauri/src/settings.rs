@@ -30,6 +30,9 @@ pub struct Settings {
     pub whisper_model: String,
 
     pub vocabulary: String,
+
+    #[serde(rename = "aiCorrection")]
+    pub ai_correction: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +49,7 @@ impl Default for Settings {
             capture_context: true,
             whisper_model: "whisper-large-v3".to_string(),
             vocabulary: String::new(),
+            ai_correction: false,
         }
     }
 }
@@ -144,6 +148,7 @@ mod tests {
         assert_eq!(loaded.hotkey_paste_only, "CmdOrCtrl+Shift+Space");
         assert_eq!(loaded.hotkey_db_paste, "CmdOrCtrl+Shift+V");
         assert!(loaded.capture_context);
+        assert!(!loaded.ai_correction);
 
         let _ = fs::remove_dir_all(&dir);
     }

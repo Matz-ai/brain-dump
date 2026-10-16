@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_updater::UpdaterExt;
 
 use brain_dump_lib::audio;
 use brain_dump_lib::quota;
@@ -78,6 +79,35 @@ fn move_overlay_to_default(overlay: &tauri::WebviewWindow) {
     let (p, s) = (m.position(), m.size());
     let x = p.x + s.width as i32 - size.width as i32 - OVERLAY_MARGIN;
     let _ = overlay.set_position(PhysicalPosition::new(x, p.y + OVERLAY_MARGIN));
+}
+
+const UPDATE_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
+
+/// Downloads a newer release from GitHub (if any) and installs it once nobody is dictating.
+/// User data lives in the config dir, untouched by the installer, so nothing is lost.
+async fn update_if_available(app: &tauri::AppHandle) -> Result<(), String> {
+    let Some(update) = app
+        .updater()
+        .map_err(|e| e.to_string())?
+        .check()
+        .await
+        .map_err(|e| e.to_string())?
+    else {
+        return Ok(());
+    };
+    println!("[brain-dump] Update {} found, downloading", update.version);
+    let bytes = update
+        .download(|_, _| {}, || {})
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let state = app.state::<AppState>();
+    while state.recorder.get_state() != RecordingState::Ready {
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    }
+    println!("[brain-dump] Installing update {}", update.version);
+    update.install(bytes).map_err(|e| e.to_string())?;
+    app.restart();
 }
 
 fn get_app_dir() -> PathBuf {
@@ -229,6 +259,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppState {
             recorder: Recorder::new(),
             settings: Mutex::new(settings),
@@ -304,6 +335,19 @@ fn main() {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
                         let _ = main_clone.minimize();
+                    }
+                });
+            }
+
+            // ---- Auto-update (release builds only) ----
+            if !cfg!(debug_assertions) {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    loop {
+                        if let Err(e) = update_if_available(&handle).await {
+                            eprintln!("[brain-dump] Update check failed: {}", e);
+                        }
+                        tokio::time::sleep(UPDATE_CHECK_INTERVAL).await;
                     }
                 });
             }
