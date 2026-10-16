@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <style>
@@ -9,7 +9,7 @@
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
       }
       body {
         display: flex;
@@ -19,85 +19,96 @@
         padding: 0 8px;
       }
       .pill {
+        --tint: 255, 255, 255;
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 8px 14px;
+        height: 30px;
+        padding: 0 13px 0 11px;
         border-radius: 999px;
-        background: rgba(30, 30, 30, 0.85);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        color: #ddd;
+        background: rgba(18, 18, 22, 0.88);
+        border: 1px solid rgba(var(--tint), 0.16);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        color: #e8e8ec;
         font-size: 12px;
         font-weight: 600;
-        letter-spacing: 0.2px;
+        letter-spacing: 0.1px;
         white-space: nowrap;
-        transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease, outline-color 0.2s ease;
+        transition: background 0.25s ease, border-color 0.25s ease, opacity 0.25s ease, transform 0.25s ease, outline-color 0.2s ease;
         outline: 2px dashed transparent;
         outline-offset: 3px;
       }
-      .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: #666;
-        box-shadow: 0 0 0 0 transparent;
-        transition: background 0.25s ease, box-shadow 0.25s ease;
+      .icon {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        width: 14px;
+        height: 14px;
       }
-      .pill.ready { opacity: 0.55; }
-      .pill.ready .dot { background: #4caf50; }
+      .icon span {
+        display: none;
+        width: 2.5px;
+        border-radius: 2px;
+        background: rgb(var(--tint));
+      }
+      .icon::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: rgb(var(--tint));
+      }
+
+      .pill.ready { --tint: 74, 222, 128; opacity: 0.6; }
+      .pill.ready #label { color: #b8b8c0; font-weight: 500; }
 
       .pill.recording {
-        background: rgba(244, 67, 54, 0.95);
-        border-color: rgba(244, 67, 54, 0.6);
-        color: #fff;
-        animation: pulse 1.0s ease-in-out infinite;
+        --tint: 255, 90, 95;
+        background: rgba(40, 12, 14, 0.92);
+        border-color: rgba(255, 90, 95, 0.55);
       }
-      .pill.recording .dot {
-        background: #fff;
-        box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.25);
-      }
+      /* Little live equalizer while recording */
+      .pill.recording .icon::before { display: none; }
+      .pill.recording .icon span { display: block; animation: eq 0.9s ease-in-out infinite; }
+      .pill.recording .icon span:nth-child(2) { animation-delay: -0.3s; }
+      .pill.recording .icon span:nth-child(3) { animation-delay: -0.6s; }
 
-      .pill.transcribing {
-        background: rgba(255, 152, 0, 0.95);
-        border-color: rgba(255, 152, 0, 0.6);
-        color: #fff;
-      }
-      .pill.transcribing .dot {
-        background: #fff;
-        animation: spin 1s linear infinite;
-        border: 2px solid rgba(255, 255, 255, 0.4);
-        border-top-color: transparent;
-        box-sizing: border-box;
+      .pill.transcribing { --tint: 251, 191, 36; }
+      .pill.transcribing .icon::before {
+        width: 11px;
+        height: 11px;
+        background: transparent;
+        border: 2px solid rgba(var(--tint), 0.3);
+        border-top-color: rgb(var(--tint));
+        animation: spin 0.8s linear infinite;
       }
 
       .pill.pasted {
-        background: rgba(76, 175, 80, 0.95);
-        border-color: rgba(76, 175, 80, 0.6);
-        color: #fff;
-        transform: scale(1.05);
+        --tint: 74, 222, 128;
+        background: rgba(10, 36, 20, 0.92);
+        border-color: rgba(74, 222, 128, 0.5);
+        transform: scale(1.04);
       }
-      .pill.pasted .dot { background: #fff; }
-
+      .pill.empty { --tint: 160, 160, 170; }
       .pill.failed {
-        background: rgba(120, 30, 30, 0.95);
-        border-color: rgba(244, 67, 54, 0.4);
-        color: #fff;
+        --tint: 255, 90, 95;
+        background: rgba(40, 12, 14, 0.92);
+        border-color: rgba(255, 90, 95, 0.45);
       }
-      .pill.failed .dot { background: #ff5252; }
 
       .pill.repositioning {
-        outline-color: #4a9eff;
+        outline-color: #7c8cff;
         opacity: 1;
         cursor: grab;
         animation: dashFlow 1s linear infinite;
       }
       .pill.repositioning:active { cursor: grabbing; }
 
-      @keyframes pulse {
-        0%, 100% { transform: scale(1); }
-        50% { transform: scale(1.04); }
+      @keyframes eq {
+        0%, 100% { height: 4px; }
+        50% { height: 13px; }
       }
       @keyframes spin {
         to { transform: rotate(360deg); }
@@ -110,39 +121,24 @@
   </head>
   <body>
     <div class="pill ready" id="pill" data-tauri-drag-region>
-      <span class="dot" id="dot"></span>
+      <span class="icon"><span></span><span></span><span></span></span>
       <span id="label">Prêt</span>
     </div>
 
-    <script type="module">
-      import { getCurrentWindow, PhysicalPosition } from "https://esm.sh/@tauri-apps/api@2/window";
-      import { listen } from "https://esm.sh/@tauri-apps/api@2/event";
+    <script>
+      // Tauri API is injected globally (withGlobalTauri) — no network import needed.
+      const { getCurrentWindow } = window.__TAURI__.window;
+      const { listen } = window.__TAURI__.event;
 
       const appWindow = getCurrentWindow();
       const pill = document.getElementById("pill");
       const label = document.getElementById("label");
 
-      // Always click-through (the tray icon is the control surface).
+      // Always click-through (the main window is the control surface).
+      // Position is saved/restored by the Rust side, which also keeps it on a connected screen.
       appWindow.setIgnoreCursorEvents(true);
 
-      // Restore saved position
-      try {
-        const savedPos = localStorage.getItem("overlay-pos");
-        if (savedPos) {
-          const { x, y } = JSON.parse(savedPos);
-          appWindow.setPosition(new PhysicalPosition(x, y));
-        }
-      } catch {}
-
-      // Persist position on every move
-      appWindow.onMoved((event) => {
-        try {
-          const { x, y } = event.payload;
-          localStorage.setItem("overlay-pos", JSON.stringify({ x, y }));
-        } catch {}
-      });
-
-      // ---- Reposition mode (triggered from tray menu) ----
+      // ---- Reposition mode (triggered from the main window) ----
       let repositionActive = false;
       let repositionTimer = null;
       const REPOSITION_TIMEOUT_MS = 10000;
@@ -174,8 +170,9 @@
       });
 
       // ---- State management ----
-      const STATE_CLASSES = ["ready", "recording", "transcribing", "pasted", "failed"];
-      let pasteTimer = null;
+      const STATE_CLASSES = ["ready", "recording", "transcribing", "pasted", "empty", "failed"];
+      const FLASH_CLASSES = ["pasted", "empty", "failed"];
+      let flashTimer = null;
 
       function setState(cls, text) {
         for (const c of STATE_CLASSES) pill.classList.remove(c);
@@ -183,32 +180,24 @@
         label.textContent = text;
       }
 
-      function flashPasted() {
-        if (pasteTimer) clearTimeout(pasteTimer);
-        setState("pasted", "✓ Collé");
-        pasteTimer = setTimeout(() => setState("ready", "Prêt"), 1800);
-      }
-      function flashFailed() {
-        if (pasteTimer) clearTimeout(pasteTimer);
-        setState("failed", "✗ Échec");
-        pasteTimer = setTimeout(() => setState("ready", "Prêt"), 2500);
+      function flash(cls, text, ms) {
+        if (flashTimer) clearTimeout(flashTimer);
+        setState(cls, text);
+        flashTimer = setTimeout(() => setState("ready", "Prêt"), ms);
       }
 
       listen("recording-state", (event) => {
         const s = event.payload;
-        if (s === "Recording") setState("recording", "● REC");
-        else if (s === "Transcribing") setState("transcribing", "Transcrit…");
-        else if (
-          s === "Ready" &&
-          !pill.classList.contains("pasted") &&
-          !pill.classList.contains("failed")
-        ) {
+        if (s === "Recording") setState("recording", "J'écoute…");
+        else if (s === "Transcribing") setState("transcribing", "Transcription…");
+        else if (s === "Ready" && !FLASH_CLASSES.some((c) => pill.classList.contains(c))) {
           setState("ready", "Prêt");
         }
       });
 
-      listen("paste-done", () => flashPasted());
-      listen("paste-failed", () => flashFailed());
+      listen("paste-done", () => flash("pasted", "✓ Collé", 1800));
+      listen("nothing-heard", () => flash("empty", "Rien entendu", 1800));
+      listen("paste-failed", () => flash("failed", "✗ Échec", 2500));
     </script>
   </body>
 </html>

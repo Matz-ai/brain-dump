@@ -110,7 +110,10 @@ impl AudioRecorder {
         Ok(())
     }
 
-    pub fn stop_and_save(&mut self, output_path: &PathBuf) -> Result<PathBuf, String> {
+    /// Stops the stream and writes a 16kHz mono WAV with leading/trailing silence trimmed.
+    /// Returns Ok(false) (and writes nothing) when no speech was detected: sending silence
+    /// to Whisper is what produces "Sous-titres Radio-Canada"-style hallucinations.
+    pub fn stop_and_save(&mut self, output_path: &PathBuf) -> Result<bool, String> {
         self.stream = None; // Drop stops the stream
         println!("[Typr] Audio recording stopped");
 
@@ -135,6 +138,16 @@ impl AudioRecorder {
         let resampled = resample(&mono, self.source_sample_rate, 16000);
         println!("[Typr] Resampled to {} samples at 16kHz", resampled.len());
 
+        let speech = match trim_silence(&resampled, 16000) {
+            Some(s) => normalize(s),
+            None => {
+                println!("[Typr] No speech detected, skipping transcription");
+                drop(samples);
+                self.samples.lock().unwrap().clear();
+                return Ok(false);
+            }
+        };
+
         let spec = WavSpec {
             channels: 1,
             sample_rate: 16000,
@@ -143,7 +156,7 @@ impl AudioRecorder {
         };
 
         let mut writer = WavWriter::create(output_path, spec).map_err(|e| e.to_string())?;
-        for &sample in resampled.iter() {
+        for &sample in speech.iter() {
             let amplitude = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
             writer.write_sample(amplitude).map_err(|e| e.to_string())?;
         }
@@ -153,8 +166,53 @@ impl AudioRecorder {
         self.samples.lock().unwrap().clear();
 
         println!("[Typr] WAV saved to {:?}", output_path);
-        Ok(output_path.clone())
+        Ok(true)
     }
+}
+
+const FRAME_MS: usize = 20;
+/// Minimum RMS (~ -46 dBFS) for a frame to count as speech, whatever the noise floor.
+const MIN_SPEECH_RMS: f32 = 0.005;
+/// Below this much detected speech, the recording is treated as empty.
+const MIN_SPEECH_MS: usize = 200;
+const PAD_BEFORE_MS: usize = 300;
+const PAD_AFTER_MS: usize = 500;
+
+/// Returns the slice between the first and last speech frames (with padding),
+/// or None if the recording contains no speech.
+fn trim_silence(samples: &[f32], sample_rate: usize) -> Option<&[f32]> {
+    let frame_len = sample_rate * FRAME_MS / 1000;
+    let rms: Vec<f32> = samples
+        .chunks(frame_len)
+        .map(|f| (f.iter().map(|x| x * x).sum::<f32>() / f.len() as f32).sqrt())
+        .collect();
+    if rms.is_empty() {
+        return None;
+    }
+
+    // Adaptive threshold: well above the noise floor (10th percentile frame).
+    let mut sorted = rms.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let noise_floor = sorted[sorted.len() / 10];
+    let threshold = (noise_floor * 3.0).max(MIN_SPEECH_RMS);
+
+    let speech_frames = rms.iter().filter(|&&r| r > threshold).count();
+    if speech_frames * FRAME_MS < MIN_SPEECH_MS {
+        return None;
+    }
+
+    let first = rms.iter().position(|&r| r > threshold)?;
+    let last = rms.iter().rposition(|&r| r > threshold)?;
+    let start = (first * frame_len).saturating_sub(sample_rate * PAD_BEFORE_MS / 1000);
+    let end = ((last + 1) * frame_len + sample_rate * PAD_AFTER_MS / 1000).min(samples.len());
+    Some(&samples[start..end])
+}
+
+/// Peak-normalizes quiet recordings (gain capped at 10x) so Whisper hears them clearly.
+fn normalize(samples: &[f32]) -> Vec<f32> {
+    let peak = samples.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    let gain = if peak > 0.0 { (0.9 / peak).clamp(1.0, 10.0) } else { 1.0 };
+    samples.iter().map(|x| x * gain).collect()
 }
 
 /// Simple linear interpolation resampler
@@ -182,4 +240,51 @@ fn resample(samples: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     }
 
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SR: usize = 16000;
+
+    fn tone(ms: usize, amp: f32) -> Vec<f32> {
+        (0..SR * ms / 1000)
+            .map(|i| amp * (i as f32 * 0.05).sin())
+            .collect()
+    }
+
+    #[test]
+    fn test_silence_is_rejected() {
+        assert!(trim_silence(&vec![0.0; SR * 2], SR).is_none());
+        // Low background noise only
+        assert!(trim_silence(&tone(2000, 0.003), SR).is_none());
+    }
+
+    #[test]
+    fn test_click_is_rejected() {
+        // A 60ms key click in 2s of silence is not speech
+        let mut s = vec![0.0; SR];
+        s.extend(tone(60, 0.5));
+        s.extend(vec![0.0; SR]);
+        assert!(trim_silence(&s, SR).is_none());
+    }
+
+    #[test]
+    fn test_speech_is_trimmed_with_padding() {
+        let mut s = vec![0.0; SR * 2]; // 2s silence
+        s.extend(tone(1000, 0.2)); // 1s speech
+        s.extend(vec![0.0; SR * 3]); // 3s silence
+        let trimmed = trim_silence(&s, SR).unwrap();
+        let ms = trimmed.len() * 1000 / SR;
+        assert!(ms >= 1000 && ms <= 1000 + PAD_BEFORE_MS + PAD_AFTER_MS + FRAME_MS * 2, "{ms}");
+    }
+
+    #[test]
+    fn test_normalize_boosts_quiet_audio_with_cap() {
+        let quiet = normalize(&[0.01, -0.01]);
+        assert!((quiet[0] - 0.1).abs() < 1e-6); // capped at 10x
+        let loud = normalize(&[0.9, -0.5]);
+        assert!((loud[0] - 0.9).abs() < 1e-6); // never attenuated
+    }
 }

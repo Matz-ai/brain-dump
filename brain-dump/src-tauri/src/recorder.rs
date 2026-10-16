@@ -87,17 +87,26 @@ impl Recorder {
 
         let temp_path = app_dir.join("temp_recording.wav");
 
-        // Sauvegarde du WAV
-        {
-            let mut recorder = self.audio_recorder.lock().unwrap();
-            recorder.stop_and_save(&temp_path)?;
-        }
-
         let reset_state = || {
             let mut state = self.state.lock().unwrap();
             *state = RecordingState::Ready;
             let _ = app.emit("recording-state", RecordingState::Ready);
         };
+
+        // Sauvegarde du WAV (silences coupés). Rien de dit → pas d'appel API.
+        let saved = self.audio_recorder.lock().unwrap().stop_and_save(&temp_path);
+        match saved {
+            Ok(true) => {}
+            Ok(false) => {
+                let _ = app.emit("nothing-heard", ());
+                reset_state();
+                return Ok(String::new());
+            }
+            Err(e) => {
+                reset_state();
+                return Err(e);
+            }
+        }
 
         // Quota check AVANT l'appel API pour éviter une requête perdue
         match quota::check_and_increment(app_dir) {
@@ -142,6 +151,7 @@ impl Recorder {
         let cleaned = cleanup_text(&raw_text);
 
         if cleaned.is_empty() {
+            let _ = app.emit("nothing-heard", ());
             reset_state();
             return Ok(String::new());
         }

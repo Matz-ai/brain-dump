@@ -1,12 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Brain Dump</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -16,66 +13,92 @@
       <aside id="sidebar">
         <div class="sidebar-header">
           <div class="app-identity">
-            <svg class="app-icon" width="18" height="18" viewBox="0 0 18 18" fill="none">
-              <rect width="18" height="18" rx="4" fill="currentColor" opacity="0.15"/>
-              <path d="M5 6.5h8M5 9h5.5M5 11.5h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+            <svg class="app-icon" width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <rect width="22" height="22" rx="6" fill="currentColor"/>
+              <path d="M7 9v4M9.67 7v8M12.33 8.5v5M15 10v2" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>
             </svg>
             <span class="app-name">Brain Dump</span>
           </div>
           <div id="status-indicator">
-            <span id="status-dot"></span>
-            <span id="status-text">Ready</span>
-          </div>
-          <div id="quota-badge" title="Quota Groq free tier (reset minuit UTC)">
-            <span id="quota-text">Groq : 0 / 2000</span>
+            <span id="status-dot" class="ready"></span>
+            <span id="status-text">Prêt</span>
           </div>
         </div>
         <nav id="sidebar-nav">
-          <a class="nav-item active" data-section="general">
+          <a class="nav-item active" data-section="dictation">
             <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.2"/>
-              <path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+              <rect x="6" y="2.5" width="4" height="7" rx="2" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M4 8.5a4 4 0 008 0M8 12.5v1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
             </svg>
-            General
+            Dictée
           </a>
-          <a class="nav-item" data-section="engine">
+          <a class="nav-item" data-section="transcription">
             <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M2.5 8h3l1.5-3 2 6 1.5-3h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            Groq
+            Transcription
+          </a>
+          <a class="nav-item" data-section="overlay">
+            <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1.5" y="3" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
+              <rect x="9" y="4.5" width="4" height="2" rx="1" fill="currentColor"/>
+            </svg>
+            Voyant
           </a>
           <a class="nav-item" data-section="storage">
             <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <ellipse cx="8" cy="4" rx="5" ry="1.8" stroke="currentColor" stroke-width="1.2"/>
               <path d="M3 4v8c0 1 2.2 1.8 5 1.8s5-.8 5-1.8V4" stroke="currentColor" stroke-width="1.2"/>
             </svg>
-            Storage
-          </a>
-          <a class="nav-item" data-section="recording">
-            <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <rect x="6" y="2.5" width="4" height="7" rx="2" stroke="currentColor" stroke-width="1.2"/>
-              <path d="M4 8.5a4 4 0 008 0M8 12.5v1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-            </svg>
-            Recording
+            Sauvegarde
           </a>
         </nav>
         <div class="sidebar-footer">
-          <button id="quit-app-btn" class="quit-btn" title="Ferme Brain Dump complètement (voyant + hotkeys)">Quitter Brain Dump</button>
-          <span class="version-text">v0.2.0</span>
+          <div id="quota-badge" title="Quota gratuit Groq, remis à zéro à minuit UTC">
+            <div class="quota-head">
+              <span>Quota du jour</span>
+              <span id="quota-text">0 / 2000</span>
+            </div>
+            <div class="quota-bar"><div id="quota-fill"></div></div>
+          </div>
+          <button id="quit-app-btn" class="quit-btn" title="Ferme Brain Dump complètement (voyant + raccourcis)">Quitter Brain Dump</button>
+          <span class="version-text">v0.3.0</span>
         </div>
       </aside>
 
       <main id="content">
-        <section id="section-general" class="content-section active">
+        <section id="section-dictation" class="content-section active">
           <div class="section-header">
-            <h2 class="section-title">General</h2>
-            <p class="section-desc">Audio input et langue de transcription</p>
+            <h2 class="section-title">Dictée</h2>
+            <p class="section-desc">Parle, le texte est collé là où se trouve ton curseur.</p>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Raccourci de dictée</span>
+                <span class="label-hint">Colle le texte dans l'app active. Rien n'est sauvegardé.</span>
+              </div>
+              <div class="setting-control">
+                <button class="hotkey-btn" id="hotkey-paste-only-btn" data-slot="paste_only">Ctrl+Shift+Space</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Déclenchement</span>
+                <span class="label-hint">Bascule : un appui pour démarrer, un pour finir. Maintenir : parle tant que la touche est enfoncée.</span>
+              </div>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button id="mode-toggle" class="toggle-btn active">Bascule</button>
+                  <button id="mode-ptt" class="toggle-btn">Maintenir</button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="settings-list">
             <div class="setting-row">
               <div class="setting-label">
                 <span class="label-text">Microphone</span>
-                <span class="label-hint">Select your preferred input device</span>
               </div>
               <div class="setting-control">
                 <select id="mic-select"></select>
@@ -83,72 +106,52 @@
             </div>
             <div class="setting-row">
               <div class="setting-label">
-                <span class="label-text">Voyant flottant</span>
-                <span class="label-hint">Petit indicateur d'état (Prêt / Rec / Transcription) à l'écran</span>
-              </div>
-              <div class="setting-control">
-                <div class="toggle-group">
-                  <button id="overlay-show-btn" class="toggle-btn active">Afficher</button>
-                  <button id="overlay-hide-btn" class="toggle-btn">Masquer</button>
-                </div>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Position du voyant</span>
-                <span class="label-hint">Active le mode déplacement pendant 10s, drag le voyant à l'écran</span>
-              </div>
-              <div class="setting-control">
-                <button id="overlay-reposition-btn">Repositionner</button>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Language</span>
-                <span class="label-hint">Langue pour Whisper (fr par défaut)</span>
+                <span class="label-text">Langue</span>
               </div>
               <div class="setting-control">
                 <select id="lang-select">
                   <option value="fr">Français</option>
                   <option value="en">English</option>
-                  <option value="auto">Auto-detect</option>
+                  <option value="auto">Détection auto</option>
                 </select>
               </div>
             </div>
           </div>
         </section>
 
-        <section id="section-engine" class="content-section">
+        <section id="section-transcription" class="content-section">
           <div class="section-header">
-            <h2 class="section-title">Groq</h2>
-            <p class="section-desc">Transcription via Groq Whisper (free tier : 2000 req/jour)</p>
+            <h2 class="section-title">Transcription</h2>
+            <p class="section-desc">Whisper via Groq, gratuit jusqu'à 2000 dictées par jour.</p>
           </div>
           <div class="settings-list">
             <div class="setting-row">
               <div class="setting-label">
-                <span class="label-text">Groq API Key</span>
-                <span class="label-hint">Récupère-la sur console.groq.com</span>
+                <span class="label-text">Modèle</span>
+                <span class="label-hint">Précis = meilleure qualité, surtout en français. Rapide = un peu plus réactif.</span>
+              </div>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button id="model-large" class="toggle-btn">Précis</button>
+                  <button id="model-turbo" class="toggle-btn">Rapide</button>
+                </div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Clé API Groq</span>
+                <span class="label-hint">À récupérer sur console.groq.com</span>
               </div>
               <div class="setting-control">
                 <input type="password" id="groq-key" placeholder="gsk_..." />
               </div>
             </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Modèle Whisper</span>
-                <span class="label-hint">Turbo = rapide. Large-v3 = plus précis (~2-3x plus lent)</span>
-              </div>
-              <div class="setting-control">
-                <div class="toggle-group">
-                  <button id="model-turbo" class="toggle-btn active">Turbo</button>
-                  <button id="model-large" class="toggle-btn">Large-v3</button>
-                </div>
-              </div>
-            </div>
+          </div>
+          <div class="settings-list">
             <div class="setting-row vocab-row">
               <div class="setting-label">
                 <span class="label-text">Vocabulaire</span>
-                <span class="label-hint">Mots/jargon difficiles à reconnaître. Tape un mot puis <kbd>Entrée</kbd>. Max ~200 mots.</span>
+                <span class="label-hint">Noms propres et jargon que Whisper écorche. Tape un mot puis <kbd>Entrée</kbd>.</span>
               </div>
               <div class="setting-control vocab-control">
                 <div id="vocab-chips" class="vocab-chips">
@@ -167,16 +170,67 @@
           </div>
         </section>
 
-        <section id="section-storage" class="content-section">
+        <section id="section-overlay" class="content-section">
           <div class="section-header">
-            <h2 class="section-title">Storage</h2>
-            <p class="section-desc">Où les transcriptions sont envoyées</p>
+            <h2 class="section-title">Voyant</h2>
+            <p class="section-desc">Petite pastille qui montre l'état de la dictée par-dessus tes fenêtres.</p>
           </div>
           <div class="settings-list">
             <div class="setting-row">
               <div class="setting-label">
-                <span class="label-text">Supabase URL</span>
-                <span class="label-hint">https://xxxxx.supabase.co</span>
+                <span class="label-text">Afficher le voyant</span>
+              </div>
+              <div class="setting-control">
+                <div class="toggle-group">
+                  <button id="overlay-show-btn" class="toggle-btn active">Afficher</button>
+                  <button id="overlay-hide-btn" class="toggle-btn">Masquer</button>
+                </div>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Position</span>
+                <span class="label-hint">10 s pour le glisser où tu veux, sur n'importe quel écran. S'il se retrouve hors écran, il revient en haut à droite.</span>
+              </div>
+              <div class="setting-control">
+                <button id="overlay-reposition-btn" class="btn-secondary">Repositionner</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="section-storage" class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Sauvegarde</h2>
+            <p class="section-desc">Optionnel : un 2e raccourci qui colle le texte et l'envoie aussi dans Supabase.</p>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Raccourci dictée + sauvegarde</span>
+                <span class="label-hint">Colle dans l'app active et enregistre dans Supabase</span>
+              </div>
+              <div class="setting-control">
+                <button class="hotkey-btn" id="hotkey-db-paste-btn" data-slot="db_paste">Ctrl+Shift+V</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Capturer le contexte</span>
+                <span class="label-hint">Ajoute l'app active et le titre de la fenêtre</span>
+              </div>
+              <div class="setting-control">
+                <label class="switch">
+                  <input type="checkbox" id="capture-context" />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">URL Supabase</span>
               </div>
               <div class="setting-control">
                 <input type="text" id="supabase-url" placeholder="https://xxxxx.supabase.co" />
@@ -184,59 +238,11 @@
             </div>
             <div class="setting-row">
               <div class="setting-label">
-                <span class="label-text">Supabase Anon Key</span>
-                <span class="label-hint">Clé publishable (sb_publishable_...) ou legacy anon JWT</span>
+                <span class="label-text">Clé Supabase</span>
+                <span class="label-hint">Clé publishable (sb_publishable_...) ou anon JWT</span>
               </div>
               <div class="setting-control">
-                <input type="password" id="supabase-key" placeholder="sb_publishable_... ou eyJ..." />
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Capturer le contexte</span>
-                <span class="label-hint">Inclure l'app active et le titre de fenêtre</span>
-              </div>
-              <div class="setting-control">
-                <input type="checkbox" id="capture-context" />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section id="section-recording" class="content-section">
-          <div class="section-header">
-            <h2 class="section-title">Recording</h2>
-            <p class="section-desc">Comment déclencher la transcription</p>
-          </div>
-          <div class="settings-list">
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Recording Mode</span>
-                <span class="label-hint">Toggle = press to start/stop. PTT = hold to record.</span>
-              </div>
-              <div class="setting-control">
-                <div class="toggle-group">
-                  <button id="mode-toggle" class="toggle-btn active">Toggle</button>
-                  <button id="mode-ptt" class="toggle-btn">Push to Talk</button>
-                </div>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Hotkey — Paste only</span>
-                <span class="label-hint">Paste dans l'app active, RIEN en DB (info sensible)</span>
-              </div>
-              <div class="setting-control">
-                <button class="hotkey-btn" id="hotkey-paste-only-btn" data-slot="paste_only">Ctrl+Shift+Space</button>
-              </div>
-            </div>
-            <div class="setting-row">
-              <div class="setting-label">
-                <span class="label-text">Hotkey — DB + Paste</span>
-                <span class="label-hint">Paste dans l'app active ET sauve dans Supabase</span>
-              </div>
-              <div class="setting-control">
-                <button class="hotkey-btn" id="hotkey-db-paste-btn" data-slot="db_paste">Ctrl+Shift+V</button>
+                <input type="password" id="supabase-key" placeholder="sb_publishable_..." />
               </div>
             </div>
           </div>

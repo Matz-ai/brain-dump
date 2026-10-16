@@ -49,6 +49,7 @@ const vocabCounter = document.getElementById("vocab-counter")!;
 let vocabWords: string[] = [];
 const quotaBadge = document.getElementById("quota-badge")!;
 const quotaText = document.getElementById("quota-text")!;
+const quotaFill = document.getElementById("quota-fill")!;
 const overlayShowBtn = document.getElementById("overlay-show-btn") as HTMLButtonElement;
 const overlayHideBtn = document.getElementById("overlay-hide-btn") as HTMLButtonElement;
 const overlayRepositionBtn = document.getElementById("overlay-reposition-btn") as HTMLButtonElement;
@@ -73,6 +74,9 @@ const titlebar = document.getElementById("titlebar")!;
 const sidebar = document.getElementById("sidebar")!;
 const appWindow = getCurrentWindow();
 
+// The overlay title bar style only exists on macOS; Windows keeps its native title bar.
+if (navigator.userAgent.includes("Windows")) titlebar.classList.add("hidden");
+
 titlebar.addEventListener("mousedown", (e) => {
   if ((e.target as HTMLElement).closest("button, select, input, a, .nav-item")) return;
   appWindow.startDragging();
@@ -93,7 +97,7 @@ async function loadSettings() {
   mics.forEach((mic) => {
     const option = document.createElement("option");
     option.value = mic.name;
-    option.textContent = mic.name + (mic.is_default ? " (default)" : "");
+    option.textContent = mic.name + (mic.is_default ? " (par défaut)" : "");
     micSelect.appendChild(option);
   });
   micSelect.value = currentSettings.microphone;
@@ -226,7 +230,8 @@ async function refreshQuota() {
 }
 
 function renderQuota(q: QuotaStatus) {
-  quotaText.textContent = `Groq : ${q.used} / ${q.limit}`;
+  quotaText.textContent = `${q.used} / ${q.limit}`;
+  quotaFill.style.width = `${Math.min(100, (q.used / q.limit) * 100)}%`;
   quotaBadge.classList.remove("warn", "blocked");
   if (q.used >= q.limit) {
     quotaBadge.classList.add("blocked");
@@ -362,13 +367,13 @@ listen<string>("recording-state", (event) => {
   statusDot.className = "";
   if (state === "Recording") {
     statusDot.classList.add("recording");
-    statusText.textContent = "Recording...";
+    statusText.textContent = "J'écoute…";
   } else if (state === "Transcribing") {
     statusDot.classList.add("transcribing");
-    statusText.textContent = "Transcribing...";
+    statusText.textContent = "Transcription…";
   } else {
     statusDot.classList.add("ready");
-    statusText.textContent = "Ready";
+    statusText.textContent = "Prêt";
   }
 });
 

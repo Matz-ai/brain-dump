@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use brain_dump_lib::audio;
@@ -14,6 +14,70 @@ struct AppState {
     recorder: Recorder,
     settings: Mutex<Settings>,
     app_dir: PathBuf,
+}
+
+const OVERLAY_MARGIN: i32 = 12;
+
+fn overlay_pos_path(app_dir: &PathBuf) -> PathBuf {
+    app_dir.join("overlay_pos.json")
+}
+
+fn load_overlay_pos(app_dir: &PathBuf) -> Option<(i32, i32)> {
+    let raw = std::fs::read_to_string(overlay_pos_path(app_dir)).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    Some((v["x"].as_i64()? as i32, v["y"].as_i64()? as i32))
+}
+
+fn save_overlay_pos(app_dir: &PathBuf, x: i32, y: i32) {
+    let _ = std::fs::write(
+        overlay_pos_path(app_dir),
+        serde_json::json!({ "x": x, "y": y }).to_string(),
+    );
+}
+
+/// Physical rect (x, y, w, h) of a monitor.
+type Rect = (i32, i32, i32, i32);
+
+fn center_is_on_a_monitor(pos: (i32, i32), size: (i32, i32), monitors: &[Rect]) -> bool {
+    let (cx, cy) = (pos.0 + size.0 / 2, pos.1 + size.1 / 2);
+    monitors
+        .iter()
+        .any(|&(x, y, w, h)| cx >= x && cx < x + w && cy >= y && cy < y + h)
+}
+
+/// Puts the overlay back in the top-right corner of the primary screen if it ended up
+/// off every connected screen (monitor unplugged, resolution change, saved position stale).
+fn ensure_overlay_on_screen(overlay: &tauri::WebviewWindow) {
+    let (Ok(pos), Ok(size), Ok(monitors)) = (
+        overlay.outer_position(),
+        overlay.outer_size(),
+        overlay.available_monitors(),
+    ) else {
+        return;
+    };
+    let rects: Vec<Rect> = monitors
+        .iter()
+        .map(|m| {
+            let (p, s) = (m.position(), m.size());
+            (p.x, p.y, s.width as i32, s.height as i32)
+        })
+        .collect();
+    let size = (size.width as i32, size.height as i32);
+    if rects.is_empty() || center_is_on_a_monitor((pos.x, pos.y), size, &rects) {
+        return;
+    }
+    println!("[brain-dump] Overlay off-screen at {:?}, moving it back", pos);
+    move_overlay_to_default(overlay);
+}
+
+/// Top-right corner of the primary screen, fully inside it.
+fn move_overlay_to_default(overlay: &tauri::WebviewWindow) {
+    let (Ok(Some(m)), Ok(size)) = (overlay.primary_monitor(), overlay.outer_size()) else {
+        return;
+    };
+    let (p, s) = (m.position(), m.size());
+    let x = p.x + s.width as i32 - size.width as i32 - OVERLAY_MARGIN;
+    let _ = overlay.set_position(PhysicalPosition::new(x, p.y + OVERLAY_MARGIN));
 }
 
 fn get_app_dir() -> PathBuf {
@@ -70,6 +134,7 @@ fn set_overlay_visible(app: tauri::AppHandle, visible: bool) -> Result<(), Strin
         .get_webview_window("overlay")
         .ok_or("Overlay window not found")?;
     if visible {
+        ensure_overlay_on_screen(&w);
         w.show().map_err(|e| e.to_string())?;
     } else {
         w.hide().map_err(|e| e.to_string())?;
@@ -82,6 +147,7 @@ fn reposition_overlay(app: tauri::AppHandle) -> Result<(), String> {
     let w = app
         .get_webview_window("overlay")
         .ok_or("Overlay window not found")?;
+    ensure_overlay_on_screen(&w);
     w.show().map_err(|e| e.to_string())?;
     w.emit("start-reposition", ()).map_err(|e| e.to_string())?;
     Ok(())
@@ -183,16 +249,6 @@ fn main() {
         ])
         .setup(move |app| {
             // ---- Overlay window ----
-            let monitor = app.primary_monitor().ok().flatten();
-            let (x, y) = if let Some(m) = monitor {
-                let size = m.size();
-                let scale = m.scale_factor();
-                let logical_w = size.width as f64 / scale;
-                ((logical_w - 80.0) as i32, 10_i32)
-            } else {
-                (1380, 10)
-            };
-
             let overlay = WebviewWindowBuilder::new(
                 app,
                 "overlay",
@@ -200,7 +256,6 @@ fn main() {
             )
             .title("")
             .inner_size(160.0, 50.0)
-            .position(x as f64, y as f64)
             .resizable(false)
             .decorations(false)
             .transparent(true)
@@ -208,10 +263,37 @@ fn main() {
             .skip_taskbar(true)
             .focused(false)
             .shadow(false)
+            .visible(false)
             .build();
 
             match overlay {
-                Ok(_) => println!("[brain-dump] Overlay window created"),
+                Ok(overlay) => {
+                    let app_dir = app.state::<AppState>().app_dir.clone();
+                    match load_overlay_pos(&app_dir) {
+                        Some((x, y)) => {
+                            let _ = overlay.set_position(PhysicalPosition::new(x, y));
+                            ensure_overlay_on_screen(&overlay);
+                        }
+                        None => move_overlay_to_default(&overlay),
+                    }
+                    let _ = overlay.show();
+
+                    overlay.on_window_event(move |event| {
+                        if let WindowEvent::Moved(p) = event {
+                            save_overlay_pos(&app_dir, p.x, p.y);
+                        }
+                    });
+
+                    // Screens can be unplugged at any time: re-check every few seconds.
+                    let watched = overlay.clone();
+                    std::thread::spawn(move || loop {
+                        std::thread::sleep(std::time::Duration::from_secs(3));
+                        if watched.is_visible().unwrap_or(false) {
+                            ensure_overlay_on_screen(&watched);
+                        }
+                    });
+                    println!("[brain-dump] Overlay window created");
+                }
                 Err(e) => eprintln!("[brain-dump] Failed to create overlay: {}", e),
             }
 
@@ -322,4 +404,25 @@ fn register_hotkey_handle(
             }
         })?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SCREENS: [Rect; 2] = [(0, 0, 1920, 1080), (1920, 0, 2560, 1440)];
+
+    #[test]
+    fn test_overlay_on_primary_or_secondary() {
+        assert!(center_is_on_a_monitor((1700, 12), (240, 75), &SCREENS));
+        assert!(center_is_on_a_monitor((4000, 12), (240, 75), &SCREENS));
+    }
+
+    #[test]
+    fn test_overlay_on_unplugged_screen() {
+        // Saved on the 2nd screen, which is now gone
+        assert!(!center_is_on_a_monitor((4000, 12), (240, 75), &SCREENS[..1]));
+        // Screen to the left of the primary, now gone
+        assert!(!center_is_on_a_monitor((-1500, 300), (240, 75), &SCREENS));
+    }
 }

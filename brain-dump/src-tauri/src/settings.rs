@@ -44,7 +44,7 @@ impl Default for Settings {
             supabase_url: String::new(),
             supabase_anon_key: String::new(),
             capture_context: true,
-            whisper_model: "whisper-large-v3-turbo".to_string(),
+            whisper_model: "whisper-large-v3".to_string(),
             vocabulary: String::new(),
         }
     }
@@ -139,7 +139,7 @@ mod tests {
         assert_eq!(loaded.language, "en");
 
         // Nouveaux champs absents du JSON : defaults
-        assert_eq!(loaded.whisper_model, "whisper-large-v3-turbo");
+        assert_eq!(loaded.whisper_model, "whisper-large-v3");
         assert_eq!(loaded.vocabulary, "");
         assert_eq!(loaded.hotkey_paste_only, "CmdOrCtrl+Shift+Space");
         assert_eq!(loaded.hotkey_db_paste, "CmdOrCtrl+Shift+V");
