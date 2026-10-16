@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::snippets::Snippet;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
@@ -33,6 +35,8 @@ pub struct Settings {
 
     #[serde(rename = "aiCorrection")]
     pub ai_correction: bool,
+
+    pub snippets: Vec<Snippet>,
 }
 
 impl Default for Settings {
@@ -50,6 +54,7 @@ impl Default for Settings {
             whisper_model: "whisper-large-v3".to_string(),
             vocabulary: String::new(),
             ai_correction: false,
+            snippets: Vec::new(),
         }
     }
 }
@@ -149,6 +154,7 @@ mod tests {
         assert_eq!(loaded.hotkey_db_paste, "CmdOrCtrl+Shift+V");
         assert!(loaded.capture_context);
         assert!(!loaded.ai_correction);
+        assert!(loaded.snippets.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

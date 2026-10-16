@@ -38,6 +38,12 @@
             </svg>
             Transcription
           </a>
+          <a class="nav-item" data-section="snippets">
+            <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M9 2L4 9h4l-1 5 5-7H8l1-5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+            Raccourcis vocaux
+          </a>
           <a class="nav-item" data-section="overlay">
             <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="1.5" y="3" width="13" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
@@ -140,7 +146,7 @@
             <div class="setting-row">
               <div class="setting-label">
                 <span class="label-text">Correction IA</span>
-                <span class="label-hint">Une IA relit le texte : ponctuation, orthographe, mots du vocabulaire. Gratuit, ~0,2 s de plus. Si elle échoue, le texte brut est collé.</span>
+                <span class="label-hint">Une IA relit le texte : retire les « euh », applique tes reprises (« mardi, non, mercredi » → « mercredi »), corrige ponctuation, orthographe et mots du vocabulaire, sans reformuler. Gratuit, ~0,2 s de plus. Si elle échoue, le texte brut est collé.</span>
               </div>
               <div class="setting-control">
                 <label class="switch">
@@ -180,6 +186,15 @@
               </div>
             </div>
           </div>
+        </section>
+
+        <section id="section-snippets" class="content-section">
+          <div class="section-header">
+            <h2 class="section-title">Raccourcis vocaux</h2>
+            <p class="section-desc">Dis le déclencheur, le texte complet est collé à sa place. Ex. « ma signature » → ton bloc de signature.</p>
+          </div>
+          <div id="snippet-list"></div>
+          <button id="snippet-add-btn" class="btn-secondary">Ajouter un raccourci</button>
         </section>
 
         <section id="section-overlay" class="content-section">

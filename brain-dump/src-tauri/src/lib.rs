@@ -8,6 +8,7 @@ pub mod recorder;
 pub mod supabase;
 pub mod context;
 pub mod quota;
+pub mod snippets;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

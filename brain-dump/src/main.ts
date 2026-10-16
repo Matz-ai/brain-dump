@@ -15,6 +15,12 @@ interface Settings {
   whisperModel: string;
   vocabulary: string;
   aiCorrection: boolean;
+  snippets: Snippet[];
+}
+
+interface Snippet {
+  trigger: string;
+  text: string;
 }
 
 interface MicDevice {
@@ -49,6 +55,8 @@ const vocabChips = document.getElementById("vocab-chips")!;
 const vocabInput = document.getElementById("vocab-input") as HTMLInputElement;
 const vocabCounter = document.getElementById("vocab-counter")!;
 let vocabWords: string[] = [];
+const snippetList = document.getElementById("snippet-list")!;
+const snippetAddBtn = document.getElementById("snippet-add-btn") as HTMLButtonElement;
 const quotaBadge = document.getElementById("quota-badge")!;
 const quotaText = document.getElementById("quota-text")!;
 const quotaFill = document.getElementById("quota-fill")!;
@@ -116,6 +124,7 @@ async function loadSettings() {
   setWhisperModel(currentSettings.whisperModel);
 
   loadVocab(currentSettings.vocabulary);
+  renderSnippets();
 
   hotkeyPasteOnlyBtn.textContent = formatHotkey(currentSettings.hotkeyPasteOnly);
   hotkeyDbPasteBtn.textContent = formatHotkey(currentSettings.hotkeyDbPaste);
@@ -200,6 +209,53 @@ function updateVocabCounter() {
   vocabCounter.classList.remove("warn", "over");
   if (count > 200) vocabCounter.classList.add("over");
   else if (count > 150) vocabCounter.classList.add("warn");
+}
+
+// ── Raccourcis vocaux ──────────────────────────────────
+
+function renderSnippets() {
+  snippetList.innerHTML = "";
+  currentSettings.snippets.forEach((snippet, index) => {
+    const card = document.createElement("div");
+    card.className = "settings-list snippet-card";
+
+    const trigger = document.createElement("input");
+    trigger.type = "text";
+    trigger.className = "snippet-trigger";
+    trigger.placeholder = "Déclencheur, ex. ma signature";
+    trigger.value = snippet.trigger;
+    trigger.addEventListener("change", () => {
+      snippet.trigger = trigger.value.trim();
+      saveSettings();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn-secondary";
+    remove.textContent = "Supprimer";
+    remove.addEventListener("click", () => {
+      currentSettings.snippets.splice(index, 1);
+      renderSnippets();
+      saveSettings();
+    });
+
+    const head = document.createElement("div");
+    head.className = "snippet-head";
+    head.append(trigger, remove);
+
+    const text = document.createElement("textarea");
+    text.className = "snippet-text";
+    text.placeholder = "Texte collé à la place (plusieurs lignes possibles)";
+    text.rows = 3;
+    text.value = snippet.text;
+    text.addEventListener("change", () => {
+      snippet.text = text.value;
+      saveSettings();
+    });
+
+    card.append(head, text);
+    snippetList.appendChild(card);
+  });
 }
 
 function formatHotkey(h: string): string {
@@ -346,6 +402,11 @@ aiCorrectionCheck.addEventListener("change", saveSettings);
 modeToggle.addEventListener("click", () => { setRecordingMode("toggle"); saveSettings(); });
 modePtt.addEventListener("click", () => { setRecordingMode("push-to-talk"); saveSettings(); });
 modelTurbo.addEventListener("click", () => { setWhisperModel("whisper-large-v3-turbo"); saveSettings(); });
+snippetAddBtn.addEventListener("click", () => {
+  currentSettings.snippets.push({ trigger: "", text: "" });
+  renderSnippets();
+  snippetList.querySelector<HTMLInputElement>(".snippet-card:last-child .snippet-trigger")?.focus();
+});
 modelLarge.addEventListener("click", () => { setWhisperModel("whisper-large-v3"); saveSettings(); });
 vocabInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === ",") {

@@ -9,6 +9,7 @@ use crate::correct_groq;
 use crate::paste::paste_text;
 use crate::quota::{self, CheckResult};
 use crate::settings::Settings;
+use crate::snippets;
 use crate::supabase;
 use crate::transcribe_groq;
 
@@ -162,7 +163,8 @@ impl Recorder {
             raw_text
         };
 
-        let cleaned = cleanup_text(&raw_text);
+        // Raccourcis vocaux après le cleanup : le texte du snippet est collé tel quel
+        let cleaned = snippets::expand(&cleanup_text(&raw_text), &settings.snippets);
 
         if cleaned.is_empty() {
             let _ = app.emit("nothing-heard", ());
