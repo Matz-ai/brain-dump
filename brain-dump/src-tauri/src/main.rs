@@ -241,6 +241,7 @@ fn update_hotkey(
     let mode = match slot.as_str() {
         "paste_only" => TranscribeMode::PasteOnly,
         "db_paste" => TranscribeMode::DbPaste,
+        "command" => TranscribeMode::Command,
         _ => return Err(format!("Unknown slot: {}", slot)),
     };
 
@@ -249,6 +250,7 @@ fn update_hotkey(
         match mode {
             TranscribeMode::PasteOnly => settings.hotkey_paste_only.clone(),
             TranscribeMode::DbPaste => settings.hotkey_db_paste.clone(),
+            TranscribeMode::Command => settings.hotkey_command.clone(),
         }
     };
 
@@ -262,6 +264,7 @@ fn update_hotkey(
         match mode {
             TranscribeMode::PasteOnly => settings.hotkey_paste_only = accelerator,
             TranscribeMode::DbPaste => settings.hotkey_db_paste = accelerator,
+            TranscribeMode::Command => settings.hotkey_command = accelerator,
         }
         settings.save(&state.app_dir)?;
     }
@@ -278,7 +281,7 @@ async fn do_toggle_recording(
     match current_state {
         RecordingState::Ready => {
             let mic = state.settings.lock().unwrap().microphone.clone();
-            state.recorder.start_recording(app, &mic)?;
+            state.recorder.start_recording(app, &mic, mode)?;
             Ok("recording".to_string())
         }
         RecordingState::Recording => {
@@ -298,6 +301,7 @@ fn main() {
     let settings = Settings::load(&app_dir);
     let hotkey_paste_only = settings.hotkey_paste_only.clone();
     let hotkey_db_paste = settings.hotkey_db_paste.clone();
+    let hotkey_command = settings.hotkey_command.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -417,6 +421,11 @@ fn main() {
                 eprintln!("[brain-dump] ERROR registering db+paste hotkey: {}", e);
             }
 
+            println!("[brain-dump] Registering hotkey (command): {}", hotkey_command);
+            if let Err(e) = register_hotkey_app(app, &hotkey_command, TranscribeMode::Command) {
+                eprintln!("[brain-dump] ERROR registering command hotkey: {}", e);
+            }
+
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -464,7 +473,7 @@ fn register_hotkey_handle(
                                 let current = state.recorder.get_state();
                                 if current == RecordingState::Ready {
                                     let mic = state.settings.lock().unwrap().microphone.clone();
-                                    if let Err(e) = state.recorder.start_recording(&handle, &mic) {
+                                    if let Err(e) = state.recorder.start_recording(&handle, &mic, mode) {
                                         eprintln!("[brain-dump] PTT start error: {}", e);
                                     }
                                 }

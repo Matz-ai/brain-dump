@@ -11,6 +11,8 @@ pub mod quota;
 pub mod snippets;
 pub mod history;
 pub mod vocab;
+pub mod command_groq;
+pub mod selection;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

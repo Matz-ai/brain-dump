@@ -18,6 +18,8 @@ pub struct Settings {
     pub hotkey_paste_only: String,
     #[serde(rename = "hotkeyDbPaste")]
     pub hotkey_db_paste: String,
+    #[serde(rename = "hotkeyCommand")]
+    pub hotkey_command: String,
 
     pub language: String,
 
@@ -56,6 +58,7 @@ impl Default for Settings {
             recording_mode: "toggle".to_string(),
             hotkey_paste_only: "CmdOrCtrl+Shift+Space".to_string(),
             hotkey_db_paste: "CmdOrCtrl+Shift+V".to_string(),
+            hotkey_command: "CmdOrCtrl+Shift+E".to_string(),
             language: "fr".to_string(),
             supabase_url: String::new(),
             supabase_anon_key: String::new(),
@@ -164,6 +167,7 @@ mod tests {
         assert_eq!(loaded.vocabulary, "");
         assert_eq!(loaded.hotkey_paste_only, "CmdOrCtrl+Shift+Space");
         assert_eq!(loaded.hotkey_db_paste, "CmdOrCtrl+Shift+V");
+        assert_eq!(loaded.hotkey_command, "CmdOrCtrl+Shift+E");
         assert!(loaded.capture_context);
         assert!(!loaded.ai_correction);
         assert!(loaded.snippets.is_empty());

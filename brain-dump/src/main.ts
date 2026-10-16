@@ -8,6 +8,7 @@ interface Settings {
   recordingMode: string;
   hotkeyPasteOnly: string;
   hotkeyDbPaste: string;
+  hotkeyCommand: string;
   language: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
@@ -67,6 +68,7 @@ const modeToggle = document.getElementById("mode-toggle")!;
 const modePtt = document.getElementById("mode-ptt")!;
 const hotkeyPasteOnlyBtn = document.getElementById("hotkey-paste-only-btn") as HTMLButtonElement;
 const hotkeyDbPasteBtn = document.getElementById("hotkey-db-paste-btn") as HTMLButtonElement;
+const hotkeyCommandBtn = document.getElementById("hotkey-command-btn") as HTMLButtonElement;
 const modelTurbo = document.getElementById("model-turbo")!;
 const modelLarge = document.getElementById("model-large")!;
 const vocabChips = document.getElementById("vocab-chips")!;
@@ -156,6 +158,7 @@ async function loadSettings() {
 
   hotkeyPasteOnlyBtn.textContent = formatHotkey(currentSettings.hotkeyPasteOnly);
   hotkeyDbPasteBtn.textContent = formatHotkey(currentSettings.hotkeyDbPaste);
+  hotkeyCommandBtn.textContent = formatHotkey(currentSettings.hotkeyCommand);
 }
 
 function setWhisperModel(model: string) {
@@ -575,6 +578,7 @@ async function commitCapture(accelerator: string) {
     btn.textContent = formatHotkey(accelerator);
     if (slot === "paste_only") currentSettings.hotkeyPasteOnly = accelerator;
     else if (slot === "db_paste") currentSettings.hotkeyDbPaste = accelerator;
+    else if (slot === "command") currentSettings.hotkeyCommand = accelerator;
   } catch (e) {
     console.error("update_hotkey failed:", e);
     btn.textContent = activeCapture.previous;
@@ -584,7 +588,7 @@ async function commitCapture(accelerator: string) {
   activeCapture = null;
 }
 
-[hotkeyPasteOnlyBtn, hotkeyDbPasteBtn].forEach((btn) => {
+[hotkeyPasteOnlyBtn, hotkeyDbPasteBtn, hotkeyCommandBtn].forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     startCapture(btn);
