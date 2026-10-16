@@ -47,7 +47,7 @@ pub fn expand(text: &str, snippets: &[Snippet]) -> String {
 }
 
 /// Words with their byte span, normalized (lowercase, no accents).
-fn words(text: &str) -> Vec<(usize, usize, String)> {
+pub(crate) fn words(text: &str) -> Vec<(usize, usize, String)> {
     let mut result = Vec::new();
     let mut start = None;
     for (idx, c) in text.char_indices().chain(std::iter::once((text.len(), ' '))) {
@@ -63,7 +63,7 @@ fn words(text: &str) -> Vec<(usize, usize, String)> {
     result
 }
 
-fn normalize(word: &str) -> String {
+pub(crate) fn normalize(word: &str) -> String {
     let mut out = String::new();
     for c in word.to_lowercase().chars() {
         match c {

@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::snippets::Snippet;
+use crate::vocab::Replacement;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -37,6 +38,14 @@ pub struct Settings {
     pub ai_correction: bool,
 
     pub snippets: Vec<Snippet>,
+
+    #[serde(rename = "keepHistory")]
+    pub keep_history: bool,
+
+    /// Paires apprises depuis l'historique, appliquées juste après Whisper
+    pub replacements: Vec<Replacement>,
+    #[serde(rename = "ignoredSuggestions")]
+    pub ignored_suggestions: Vec<String>,
 }
 
 impl Default for Settings {
@@ -55,6 +64,9 @@ impl Default for Settings {
             vocabulary: String::new(),
             ai_correction: false,
             snippets: Vec::new(),
+            keep_history: true,
+            replacements: Vec::new(),
+            ignored_suggestions: Vec::new(),
         }
     }
 }
@@ -155,6 +167,8 @@ mod tests {
         assert!(loaded.capture_context);
         assert!(!loaded.ai_correction);
         assert!(loaded.snippets.is_empty());
+        assert!(loaded.keep_history);
+        assert!(loaded.replacements.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }

@@ -9,6 +9,8 @@ pub mod supabase;
 pub mod context;
 pub mod quota;
 pub mod snippets;
+pub mod history;
+pub mod vocab;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

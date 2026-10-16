@@ -7,9 +7,11 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
 
 use brain_dump_lib::audio;
+use brain_dump_lib::history;
 use brain_dump_lib::quota;
 use brain_dump_lib::recorder::{Recorder, RecordingState, TranscribeMode};
 use brain_dump_lib::settings::Settings;
+use brain_dump_lib::vocab;
 
 struct AppState {
     recorder: Recorder,
@@ -152,6 +154,47 @@ fn get_quota_status(state: State<AppState>) -> quota::QuotaStatus {
 }
 
 #[tauri::command]
+fn get_history(state: State<AppState>) -> Vec<history::Entry> {
+    history::load(&state.app_dir)
+}
+
+#[tauri::command]
+fn clear_history(state: State<AppState>) -> Result<(), String> {
+    history::clear(&state.app_dir)
+}
+
+#[tauri::command]
+fn copy_text(text: String) -> Result<(), String> {
+    arboard::Clipboard::new()
+        .and_then(|mut c| c.set_text(text))
+        .map_err(|e| e.to_string())
+}
+
+#[derive(serde::Serialize)]
+struct EditResult {
+    entry: history::Entry,
+    suggestions: Vec<vocab::Suggestion>,
+}
+
+/// Enregistre la version éditée et propose les mots à ajouter au vocabulaire.
+#[tauri::command]
+fn edit_history_entry(state: State<AppState>, id: i64, text: String) -> Result<EditResult, String> {
+    let entry = history::edit(&state.app_dir, id, &text)?;
+    let settings = state.settings.lock().unwrap();
+    let known: Vec<String> = settings
+        .vocabulary
+        .split([',', '\n'])
+        .chain(settings.ignored_suggestions.iter().map(String::as_str))
+        .map(|w| w.trim().to_lowercase())
+        .collect();
+    let suggestions = vocab::suggestions(&entry.text, &text)
+        .into_iter()
+        .filter(|s| !known.contains(&s.to.to_lowercase()))
+        .collect();
+    Ok(EditResult { entry, suggestions })
+}
+
+#[tauri::command]
 fn get_overlay_visible(app: tauri::AppHandle) -> bool {
     app.get_webview_window("overlay")
         .and_then(|w| w.is_visible().ok())
@@ -272,6 +315,10 @@ fn main() {
             get_recording_state,
             toggle_recording,
             get_quota_status,
+            get_history,
+            clear_history,
+            copy_text,
+            edit_history_entry,
             update_hotkey,
             get_overlay_visible,
             set_overlay_visible,

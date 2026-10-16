@@ -1,17 +1,20 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use crate::audio::AudioRecorder;
 use crate::cleanup::cleanup_text;
 use crate::context;
 use crate::correct_groq;
+use crate::history;
 use crate::paste::paste_text;
 use crate::quota::{self, CheckResult};
 use crate::settings::Settings;
 use crate::snippets;
 use crate::supabase;
 use crate::transcribe_groq;
+use crate::vocab;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum RecordingState {
@@ -42,6 +45,7 @@ impl TranscribeMode {
 pub struct Recorder {
     state: Arc<Mutex<RecordingState>>,
     audio_recorder: Arc<Mutex<AudioRecorder>>,
+    started_at: Mutex<Option<Instant>>,
 }
 
 impl Recorder {
@@ -49,6 +53,7 @@ impl Recorder {
         Self {
             state: Arc::new(Mutex::new(RecordingState::Ready)),
             audio_recorder: Arc::new(Mutex::new(AudioRecorder::new())),
+            started_at: Mutex::new(None),
         }
     }
 
@@ -64,6 +69,7 @@ impl Recorder {
 
         let mut recorder = self.audio_recorder.lock().unwrap();
         recorder.start(mic_name)?;
+        *self.started_at.lock().unwrap() = Some(Instant::now());
 
         *state = RecordingState::Recording;
         let _ = app.emit("recording-state", RecordingState::Recording);
@@ -94,6 +100,13 @@ impl Recorder {
             *state = RecordingState::Ready;
             let _ = app.emit("recording-state", RecordingState::Ready);
         };
+
+        let duration_ms = self
+            .started_at
+            .lock()
+            .unwrap()
+            .take()
+            .map_or(0, |t| t.elapsed().as_millis() as u64);
 
         // Sauvegarde du WAV (silences coupés). Rien de dit → pas d'appel API.
         let saved = self.audio_recorder.lock().unwrap().stop_and_save(&temp_path);
@@ -136,7 +149,7 @@ impl Recorder {
             &temp_path,
             &settings.language,
             &settings.whisper_model,
-            &settings.vocabulary,
+            &vocab::whisper_prompt(&settings.vocabulary),
         )
         .await;
 
@@ -150,21 +163,24 @@ impl Recorder {
             }
         };
 
+        // Corrections apprises (« super base » → « Supabase »), sans appel réseau
+        let text = vocab::apply_replacements(&raw_text, &settings.replacements);
+
         // Correction IA optionnelle : en cas d'échec on garde la transcription brute
-        let raw_text = if settings.ai_correction && !raw_text.trim().is_empty() {
-            match correct_groq::correct_text(&settings.groq_api_key, &raw_text, &settings.vocabulary).await {
+        let text = if settings.ai_correction && !text.trim().is_empty() {
+            match correct_groq::correct_text(&settings.groq_api_key, &text, &settings.vocabulary).await {
                 Ok(t) => t,
                 Err(e) => {
                     eprintln!("[brain-dump] AI correction skipped: {}", e);
-                    raw_text
+                    text
                 }
             }
         } else {
-            raw_text
+            text
         };
 
         // Raccourcis vocaux après le cleanup : le texte du snippet est collé tel quel
-        let cleaned = snippets::expand(&cleanup_text(&raw_text), &settings.snippets);
+        let cleaned = snippets::expand(&cleanup_text(&text), &settings.snippets);
 
         if cleaned.is_empty() {
             let _ = app.emit("nothing-heard", ());
@@ -201,6 +217,38 @@ impl Recorder {
                 eprintln!("[brain-dump] Paste failed: {}", e);
                 let _ = app.emit("paste-failed", &e);
             }
+        }
+
+        // Historique hors du chemin critique : le collage est déjà fait
+        if settings.keep_history {
+            let (app, app_dir, text) = (app.clone(), app_dir.clone(), cleaned.clone());
+            let capture_context = settings.capture_context;
+            tauri::async_runtime::spawn_blocking(move || {
+                let target_app = if capture_context {
+                    context::capture_active_context()["app"]
+                        .as_str()
+                        .filter(|a| !a.is_empty())
+                        .map(str::to_string)
+                } else {
+                    None
+                };
+                let now = chrono::Local::now();
+                let entry = history::Entry {
+                    id: now.timestamp_millis(),
+                    date: now.to_rfc3339(),
+                    text,
+                    edited: None,
+                    raw: raw_text,
+                    app: target_app,
+                    duration_ms,
+                };
+                match history::add(&app_dir, entry.clone()) {
+                    Ok(_) => {
+                        let _ = app.emit("history-added", &entry);
+                    }
+                    Err(e) => eprintln!("[brain-dump] History save failed: {}", e),
+                }
+            });
         }
 
         reset_state();

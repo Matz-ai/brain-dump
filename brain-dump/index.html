@@ -25,7 +25,14 @@
           </div>
         </div>
         <nav id="sidebar-nav">
-          <a class="nav-item active" data-section="dictation">
+          <a class="nav-item active" data-section="history">
+            <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            Historique
+          </a>
+          <a class="nav-item" data-section="dictation">
             <svg class="nav-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
               <rect x="6" y="2.5" width="4" height="7" rx="2" stroke="currentColor" stroke-width="1.2"/>
               <path d="M4 8.5a4 4 0 008 0M8 12.5v1.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
@@ -73,7 +80,34 @@
       </aside>
 
       <main id="content">
-        <section id="section-dictation" class="content-section active">
+        <section id="section-history" class="content-section active">
+          <div class="section-header">
+            <h2 class="section-title">Historique</h2>
+            <p class="section-desc">Tes 100 dernières dictées, gardées sur cet ordinateur. Corrige un mot : Brain Dump propose de l'apprendre.</p>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Garder l'historique</span>
+                <span class="label-hint">Désactive-le si tu dictes des infos sensibles (mots de passe, données perso).</span>
+              </div>
+              <div class="setting-control">
+                <label class="switch">
+                  <input type="checkbox" id="keep-history" />
+                  <span class="switch-track"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+          <div id="vocab-suggestions"></div>
+          <div class="history-toolbar">
+            <input type="text" id="history-search" placeholder="Rechercher…" autocomplete="off" spellcheck="false" />
+            <button id="history-clear-btn" class="btn-secondary">Tout effacer</button>
+          </div>
+          <div id="history-list"></div>
+        </section>
+
+        <section id="section-dictation" class="content-section">
           <div class="section-header">
             <h2 class="section-title">Dictée</h2>
             <p class="section-desc">Parle, le texte est collé là où se trouve ton curseur.</p>
@@ -183,6 +217,15 @@
                   />
                 </div>
                 <span id="vocab-counter" class="vocab-counter">0 mots</span>
+              </div>
+            </div>
+            <div class="setting-row vocab-row">
+              <div class="setting-label">
+                <span class="label-text">Corrections apprises</span>
+                <span class="label-hint">Remplacées automatiquement après la transcription. Elles viennent des mots que tu corriges dans l'historique.</span>
+              </div>
+              <div class="setting-control vocab-control">
+                <div id="replacement-chips" class="vocab-chips"></div>
               </div>
             </div>
           </div>

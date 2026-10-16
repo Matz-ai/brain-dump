@@ -535,6 +535,45 @@ kbd {
   color: var(--text-secondary);
 }
 
+/* ── Historique ─────────────────────────────────────── */
+
+.history-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.history-toolbar #history-search {
+  flex: 1;
+  width: auto;
+}
+
+.history-card {
+  padding: 12px 18px;
+  gap: 8px;
+}
+
+.history-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.suggestion-card {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 /* ── Toggle Group ───────────────────────────────────── */
 
 .toggle-group {
