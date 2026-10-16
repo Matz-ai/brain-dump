@@ -8,6 +8,7 @@ interface Settings {
   recordingMode: string;
   hotkeyPasteOnly: string;
   hotkeyDbPaste: string;
+  hotkeyCommand: string;
   language: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
@@ -15,6 +16,30 @@ interface Settings {
   whisperModel: string;
   vocabulary: string;
   aiCorrection: boolean;
+  snippets: Snippet[];
+  keepHistory: boolean;
+  replacements: Replacement[];
+  ignoredSuggestions: string[];
+}
+
+interface Replacement {
+  from: string;
+  to: string;
+}
+
+interface HistoryEntry {
+  id: number;
+  date: string;
+  text: string;
+  edited: string | null;
+  raw: string;
+  app: string | null;
+  durationMs: number;
+}
+
+interface Snippet {
+  trigger: string;
+  text: string;
 }
 
 interface MicDevice {
@@ -43,12 +68,23 @@ const modeToggle = document.getElementById("mode-toggle")!;
 const modePtt = document.getElementById("mode-ptt")!;
 const hotkeyPasteOnlyBtn = document.getElementById("hotkey-paste-only-btn") as HTMLButtonElement;
 const hotkeyDbPasteBtn = document.getElementById("hotkey-db-paste-btn") as HTMLButtonElement;
+const hotkeyCommandBtn = document.getElementById("hotkey-command-btn") as HTMLButtonElement;
 const modelTurbo = document.getElementById("model-turbo")!;
 const modelLarge = document.getElementById("model-large")!;
 const vocabChips = document.getElementById("vocab-chips")!;
 const vocabInput = document.getElementById("vocab-input") as HTMLInputElement;
 const vocabCounter = document.getElementById("vocab-counter")!;
 let vocabWords: string[] = [];
+const replacementChips = document.getElementById("replacement-chips")!;
+const keepHistoryCheck = document.getElementById("keep-history") as HTMLInputElement;
+const historyList = document.getElementById("history-list")!;
+const historySearch = document.getElementById("history-search") as HTMLInputElement;
+const historyClearBtn = document.getElementById("history-clear-btn") as HTMLButtonElement;
+const vocabSuggestions = document.getElementById("vocab-suggestions")!;
+let historyEntries: HistoryEntry[] = [];
+let pendingSuggestions: Replacement[] = [];
+const snippetList = document.getElementById("snippet-list")!;
+const snippetAddBtn = document.getElementById("snippet-add-btn") as HTMLButtonElement;
 const quotaBadge = document.getElementById("quota-badge")!;
 const quotaText = document.getElementById("quota-text")!;
 const quotaFill = document.getElementById("quota-fill")!;
@@ -111,14 +147,18 @@ async function loadSettings() {
   supabaseKey.value = currentSettings.supabaseAnonKey;
   captureContextCheck.checked = currentSettings.captureContext;
   aiCorrectionCheck.checked = currentSettings.aiCorrection;
+  keepHistoryCheck.checked = currentSettings.keepHistory;
 
   setRecordingMode(currentSettings.recordingMode);
   setWhisperModel(currentSettings.whisperModel);
 
   loadVocab(currentSettings.vocabulary);
+  renderReplacements();
+  renderSnippets();
 
   hotkeyPasteOnlyBtn.textContent = formatHotkey(currentSettings.hotkeyPasteOnly);
   hotkeyDbPasteBtn.textContent = formatHotkey(currentSettings.hotkeyDbPaste);
+  hotkeyCommandBtn.textContent = formatHotkey(currentSettings.hotkeyCommand);
 }
 
 function setWhisperModel(model: string) {
@@ -194,12 +234,253 @@ function serializeVocab(): string {
   return vocabWords.join(", ");
 }
 
+// Limite du prompt Whisper, en phase avec WHISPER_PROMPT_MAX_CHARS dans vocab.rs
+const WHISPER_VOCAB_MAX_CHARS = 550;
+
 function updateVocabCounter() {
   const count = vocabWords.length;
-  vocabCounter.textContent = `${count} mot${count > 1 ? "s" : ""}`;
+  const chars = serializeVocab().length;
+  const words = `${count} mot${count > 1 ? "s" : ""}`;
   vocabCounter.classList.remove("warn", "over");
-  if (count > 200) vocabCounter.classList.add("over");
-  else if (count > 150) vocabCounter.classList.add("warn");
+  if (chars > WHISPER_VOCAB_MAX_CHARS) {
+    vocabCounter.textContent = `${words} · limite Whisper dépassée : seuls les plus récents lui sont envoyés`;
+    vocabCounter.classList.add("over");
+  } else {
+    vocabCounter.textContent = `${words} · ${chars} / ${WHISPER_VOCAB_MAX_CHARS} caractères`;
+    if (chars > WHISPER_VOCAB_MAX_CHARS * 0.8) vocabCounter.classList.add("warn");
+  }
+}
+
+function renderReplacements() {
+  replacementChips.innerHTML = "";
+  if (currentSettings.replacements.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "muted-hint";
+    empty.textContent = "Aucune pour l'instant";
+    replacementChips.appendChild(empty);
+    return;
+  }
+  currentSettings.replacements.forEach((r, index) => {
+    const chip = document.createElement("span");
+    chip.className = "vocab-chip";
+    const text = document.createElement("span");
+    text.className = "vocab-chip-text";
+    text.textContent = `${r.from} → ${r.to}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "vocab-chip-remove";
+    remove.setAttribute("aria-label", `Supprimer ${r.from}`);
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      currentSettings.replacements.splice(index, 1);
+      renderReplacements();
+      saveSettings();
+    });
+    chip.append(text, remove);
+    replacementChips.appendChild(chip);
+  });
+}
+
+// ── Historique ─────────────────────────────────────────
+
+const dateFormat = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function entryText(e: HistoryEntry): string {
+  return e.edited ?? e.text;
+}
+
+function renderHistory() {
+  historyList.innerHTML = "";
+  const query = historySearch.value.trim().toLowerCase();
+  const shown = historyEntries.filter(
+    (e) => !query || entryText(e).toLowerCase().includes(query) || e.raw.toLowerCase().includes(query)
+  );
+  if (shown.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "muted-hint";
+    if (query) empty.textContent = "Aucune dictée ne correspond.";
+    else if (!keepHistoryCheck.checked) empty.textContent = "L'historique est désactivé.";
+    else empty.textContent = "Aucune dictée pour l'instant.";
+    historyList.appendChild(empty);
+    return;
+  }
+  for (const entry of shown) historyList.appendChild(historyCard(entry));
+}
+
+function historyCard(entry: HistoryEntry): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "settings-list history-card";
+
+  const meta = document.createElement("span");
+  meta.className = "history-meta";
+  const parts = [dateFormat.format(new Date(entry.date))];
+  if (entry.app) parts.push(entry.app.replace(/\.exe$/i, ""));
+  if (entry.durationMs) parts.push(`${Math.max(1, Math.round(entry.durationMs / 1000))} s`);
+  if (entry.edited !== null) parts.push("modifiée");
+  meta.textContent = parts.join(" · ");
+  meta.title = `Transcription Whisper brute :\n${entry.raw}`;
+
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "btn-secondary";
+  copy.textContent = "Copier";
+  copy.addEventListener("click", async () => {
+    try {
+      await invoke("copy_text", { text: entryText(entry) });
+      copy.textContent = "Copié";
+      setTimeout(() => (copy.textContent = "Copier"), 1500);
+    } catch (e) {
+      alert(`Impossible de copier : ${e}`);
+    }
+  });
+
+  const head = document.createElement("div");
+  head.className = "snippet-head history-head";
+  head.append(meta, copy);
+
+  const text = document.createElement("textarea");
+  text.className = "snippet-text";
+  text.rows = Math.min(8, Math.max(2, Math.ceil(entryText(entry).length / 90)));
+  text.value = entryText(entry);
+  text.addEventListener("change", () => saveEdit(entry, text.value));
+
+  card.append(head, text);
+  return card;
+}
+
+async function saveEdit(entry: HistoryEntry, value: string) {
+  try {
+    const result = await invoke<{ entry: HistoryEntry; suggestions: Replacement[] }>(
+      "edit_history_entry",
+      { id: entry.id, text: value }
+    );
+    Object.assign(entry, result.entry);
+    for (const s of result.suggestions) {
+      if (!pendingSuggestions.some((p) => p.to.toLowerCase() === s.to.toLowerCase())) {
+        pendingSuggestions.push(s);
+      }
+    }
+    renderHistory();
+    renderSuggestions();
+  } catch (e) {
+    alert(`Impossible d'enregistrer la modification : ${e}`);
+  }
+}
+
+async function loadHistory() {
+  historyEntries = await invoke<HistoryEntry[]>("get_history");
+  renderHistory();
+}
+
+// ── Dictionnaire qui apprend ───────────────────────────
+
+function renderSuggestions() {
+  vocabSuggestions.innerHTML = "";
+  pendingSuggestions.forEach((s, index) => {
+    const label = document.createElement("div");
+    label.className = "setting-label";
+    const title = document.createElement("span");
+    title.className = "label-text";
+    title.textContent = `Ajouter « ${s.to} » au vocabulaire ?`;
+    const hint = document.createElement("span");
+    hint.className = "label-hint";
+    hint.textContent = `« ${s.from} » sera aussi remplacé par « ${s.to} » dans tes prochaines dictées.`;
+    label.append(title, hint);
+
+    const add = document.createElement("button");
+    add.type = "button";
+    add.className = "btn-secondary";
+    add.textContent = "Ajouter";
+    add.addEventListener("click", () => {
+      pendingSuggestions.splice(index, 1);
+      if (!vocabWords.some((w) => w.toLowerCase() === s.to.toLowerCase())) {
+        vocabWords.push(s.to);
+        renderVocab();
+      }
+      if (!currentSettings.replacements.some((r) => r.from.toLowerCase() === s.from.toLowerCase())) {
+        currentSettings.replacements.push(s);
+        renderReplacements();
+      }
+      renderSuggestions();
+      saveSettings();
+    });
+
+    const ignore = document.createElement("button");
+    ignore.type = "button";
+    ignore.className = "btn-secondary";
+    ignore.textContent = "Ignorer";
+    ignore.addEventListener("click", () => {
+      pendingSuggestions.splice(index, 1);
+      currentSettings.ignoredSuggestions.push(s.to.toLowerCase());
+      renderSuggestions();
+      saveSettings();
+    });
+
+    const actions = document.createElement("div");
+    actions.className = "suggestion-actions";
+    actions.append(add, ignore);
+
+    const row = document.createElement("div");
+    row.className = "setting-row";
+    row.append(label, actions);
+
+    const card = document.createElement("div");
+    card.className = "settings-list suggestion-card";
+    card.appendChild(row);
+    vocabSuggestions.appendChild(card);
+  });
+}
+
+// ── Raccourcis vocaux ──────────────────────────────────
+
+function renderSnippets() {
+  snippetList.innerHTML = "";
+  currentSettings.snippets.forEach((snippet, index) => {
+    const card = document.createElement("div");
+    card.className = "settings-list snippet-card";
+
+    const trigger = document.createElement("input");
+    trigger.type = "text";
+    trigger.className = "snippet-trigger";
+    trigger.placeholder = "Déclencheur, ex. ma signature";
+    trigger.value = snippet.trigger;
+    trigger.addEventListener("change", () => {
+      snippet.trigger = trigger.value.trim();
+      saveSettings();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "btn-secondary";
+    remove.textContent = "Supprimer";
+    remove.addEventListener("click", () => {
+      currentSettings.snippets.splice(index, 1);
+      renderSnippets();
+      saveSettings();
+    });
+
+    const head = document.createElement("div");
+    head.className = "snippet-head";
+    head.append(trigger, remove);
+
+    const text = document.createElement("textarea");
+    text.className = "snippet-text";
+    text.placeholder = "Texte collé à la place (plusieurs lignes possibles)";
+    text.rows = 3;
+    text.value = snippet.text;
+    text.addEventListener("change", () => {
+      snippet.text = text.value;
+      saveSettings();
+    });
+
+    card.append(head, text);
+    snippetList.appendChild(card);
+  });
 }
 
 function formatHotkey(h: string): string {
@@ -220,6 +501,7 @@ async function saveSettings() {
   currentSettings.supabaseAnonKey = supabaseKey.value;
   currentSettings.captureContext = captureContextCheck.checked;
   currentSettings.aiCorrection = aiCorrectionCheck.checked;
+  currentSettings.keepHistory = keepHistoryCheck.checked;
   currentSettings.vocabulary = serializeVocab();
   await invoke("save_settings", { settings: currentSettings });
 }
@@ -296,6 +578,7 @@ async function commitCapture(accelerator: string) {
     btn.textContent = formatHotkey(accelerator);
     if (slot === "paste_only") currentSettings.hotkeyPasteOnly = accelerator;
     else if (slot === "db_paste") currentSettings.hotkeyDbPaste = accelerator;
+    else if (slot === "command") currentSettings.hotkeyCommand = accelerator;
   } catch (e) {
     console.error("update_hotkey failed:", e);
     btn.textContent = activeCapture.previous;
@@ -305,7 +588,7 @@ async function commitCapture(accelerator: string) {
   activeCapture = null;
 }
 
-[hotkeyPasteOnlyBtn, hotkeyDbPasteBtn].forEach((btn) => {
+[hotkeyPasteOnlyBtn, hotkeyDbPasteBtn, hotkeyCommandBtn].forEach((btn) => {
   btn.addEventListener("click", (e) => {
     e.stopPropagation();
     startCapture(btn);
@@ -343,9 +626,26 @@ supabaseUrl.addEventListener("change", saveSettings);
 supabaseKey.addEventListener("change", saveSettings);
 captureContextCheck.addEventListener("change", saveSettings);
 aiCorrectionCheck.addEventListener("change", saveSettings);
+keepHistoryCheck.addEventListener("change", () => { saveSettings(); renderHistory(); });
+historySearch.addEventListener("input", renderHistory);
+historyClearBtn.addEventListener("click", async () => {
+  if (!confirm("Effacer tout l'historique des dictées ? C'est définitif.")) return;
+  try {
+    await invoke("clear_history");
+    historyEntries = [];
+    renderHistory();
+  } catch (e) {
+    alert(`Impossible d'effacer l'historique : ${e}`);
+  }
+});
 modeToggle.addEventListener("click", () => { setRecordingMode("toggle"); saveSettings(); });
 modePtt.addEventListener("click", () => { setRecordingMode("push-to-talk"); saveSettings(); });
 modelTurbo.addEventListener("click", () => { setWhisperModel("whisper-large-v3-turbo"); saveSettings(); });
+snippetAddBtn.addEventListener("click", () => {
+  currentSettings.snippets.push({ trigger: "", text: "" });
+  renderSnippets();
+  snippetList.querySelector<HTMLInputElement>(".snippet-card:last-child .snippet-trigger")?.focus();
+});
 modelLarge.addEventListener("click", () => { setWhisperModel("whisper-large-v3"); saveSettings(); });
 vocabInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" || e.key === ",") {
@@ -380,6 +680,12 @@ listen<string>("recording-state", (event) => {
     statusDot.classList.add("ready");
     statusText.textContent = "Prêt";
   }
+});
+
+listen<HistoryEntry>("history-added", (event) => {
+  historyEntries.unshift(event.payload);
+  historyEntries.length = Math.min(historyEntries.length, 100);
+  renderHistory();
 });
 
 // Quota events
@@ -452,7 +758,7 @@ async function syncOverlayState() {
 }
 
 // Init
-loadSettings();
+loadSettings().then(loadHistory);
 refreshQuota();
 syncOverlayState();
 setInterval(refreshQuota, 30_000);

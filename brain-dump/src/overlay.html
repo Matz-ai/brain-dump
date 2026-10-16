@@ -85,6 +85,13 @@
         animation: spin 0.8s linear infinite;
       }
 
+      /* Mode commande : même animation, teinte violette */
+      .pill.cmd {
+        --tint: 167, 139, 250;
+        background: rgba(26, 18, 46, 0.92);
+        border-color: rgba(167, 139, 250, 0.55);
+      }
+
       .pill.pasted {
         --tint: 74, 222, 128;
         background: rgba(10, 36, 20, 0.92);
@@ -128,6 +135,7 @@
     <script>
       // Tauri API is injected globally (withGlobalTauri) — no network import needed.
       const { getCurrentWindow } = window.__TAURI__.window;
+      const { PhysicalPosition, PhysicalSize } = window.__TAURI__.dpi;
       const { listen } = window.__TAURI__.event;
 
       const appWindow = getCurrentWindow();
@@ -173,10 +181,37 @@
       const STATE_CLASSES = ["ready", "recording", "transcribing", "pasted", "empty", "failed"];
       const FLASH_CLASSES = ["pasted", "empty", "failed"];
       let flashTimer = null;
+      let commandMode = false;
 
-      function setState(cls, text) {
+      // Long messages (command errors) don't fit in the window: widen it around its center while shown.
+      let savedGeometry = null;
+
+      async function fitWindowToPill() {
+        const needed = pill.offsetWidth + 16;
+        if (needed <= window.innerWidth) return;
+        const scale = await appWindow.scaleFactor();
+        const pos = await appWindow.outerPosition();
+        const size = await appWindow.outerSize();
+        savedGeometry = { pos, size };
+        const width = Math.ceil(needed * scale);
+        const dx = Math.round((width - size.width) / 2);
+        await appWindow.setPosition(new PhysicalPosition(pos.x - dx, pos.y));
+        await appWindow.setSize(new PhysicalSize(width, size.height));
+      }
+
+      async function restoreWindow() {
+        if (!savedGeometry) return;
+        const { pos, size } = savedGeometry;
+        savedGeometry = null;
+        await appWindow.setSize(size);
+        await appWindow.setPosition(pos);
+      }
+
+      function setState(cls, text, cmd = false) {
+        restoreWindow();
         for (const c of STATE_CLASSES) pill.classList.remove(c);
         pill.classList.add(cls);
+        pill.classList.toggle("cmd", cmd);
         label.textContent = text;
       }
 
@@ -186,10 +221,14 @@
         flashTimer = setTimeout(() => setState("ready", "Prêt"), ms);
       }
 
+      listen("recording-mode", (event) => {
+        commandMode = event.payload === "command";
+      });
+
       listen("recording-state", (event) => {
         const s = event.payload;
-        if (s === "Recording") setState("recording", "J'écoute…");
-        else if (s === "Transcribing") setState("transcribing", "Transcription…");
+        if (s === "Recording") setState("recording", commandMode ? "Commande…" : "J'écoute…", commandMode);
+        else if (s === "Transcribing") setState("transcribing", commandMode ? "Commande…" : "Transcription…", commandMode);
         else if (s === "Ready" && !FLASH_CLASSES.some((c) => pill.classList.contains(c))) {
           setState("ready", "Prêt");
         }
@@ -198,6 +237,10 @@
       listen("paste-done", () => flash("pasted", "✓ Collé", 1800));
       listen("nothing-heard", () => flash("empty", "Rien entendu", 1800));
       listen("paste-failed", () => flash("failed", "✗ Échec", 2500));
+      listen("command-failed", (event) => {
+        flash("failed", `✗ ${event.payload}`, 4500);
+        fitWindowToPill();
+      });
     </script>
   </body>
 </html>

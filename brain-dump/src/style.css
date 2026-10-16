@@ -477,6 +477,47 @@ input::placeholder {
 .vocab-counter.warn { color: var(--yellow); }
 .vocab-counter.over { color: var(--red); }
 
+/* ── Snippets ───────────────────────────────────────── */
+
+.snippet-card {
+  padding: 14px 18px;
+  gap: 10px;
+}
+
+.snippet-head {
+  display: flex;
+  gap: 10px;
+}
+
+.snippet-head .snippet-trigger {
+  flex: 1;
+  width: auto;
+}
+
+.snippet-text {
+  width: 100%;
+  padding: 7px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 13px;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.snippet-text:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-subtle);
+}
+
+.snippet-text::placeholder {
+  color: var(--text-tertiary);
+}
+
 .muted-hint {
   font-size: 12px;
   color: var(--text-tertiary);
@@ -492,6 +533,45 @@ kbd {
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 10px;
   color: var(--text-secondary);
+}
+
+/* ── Historique ─────────────────────────────────────── */
+
+.history-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.history-toolbar #history-search {
+  flex: 1;
+  width: auto;
+}
+
+.history-card {
+  padding: 12px 18px;
+  gap: 8px;
+}
+
+.history-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
+.history-meta {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.suggestion-card {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}
+
+.suggestion-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── Toggle Group ───────────────────────────────────── */

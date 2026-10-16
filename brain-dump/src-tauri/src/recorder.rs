@@ -1,16 +1,22 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use crate::audio::AudioRecorder;
 use crate::cleanup::cleanup_text;
+use crate::command_groq;
 use crate::context;
 use crate::correct_groq;
+use crate::history;
 use crate::paste::paste_text;
 use crate::quota::{self, CheckResult};
+use crate::selection;
 use crate::settings::Settings;
+use crate::snippets;
 use crate::supabase;
 use crate::transcribe_groq;
+use crate::vocab;
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum RecordingState {
@@ -23,6 +29,7 @@ pub enum RecordingState {
 pub enum TranscribeMode {
     PasteOnly, // paste dans l'app active, PAS de DB (info sensible)
     DbPaste,   // DB + paste dans l'app active
+    Command,   // instruction vocale appliquée à la sélection, PAS de DB
 }
 
 impl TranscribeMode {
@@ -30,6 +37,7 @@ impl TranscribeMode {
         match self {
             TranscribeMode::PasteOnly => "desktop_paste_only",
             TranscribeMode::DbPaste => "desktop_db_paste",
+            TranscribeMode::Command => "desktop_command",
         }
     }
 
@@ -38,9 +46,21 @@ impl TranscribeMode {
     }
 }
 
+/// The stop key decides between the two dictation modes (as before), but a command started
+/// with the command key stays a command, and a dictation is never turned into one.
+fn effective_mode(started: Option<TranscribeMode>, requested: TranscribeMode) -> TranscribeMode {
+    match started {
+        Some(TranscribeMode::Command) => TranscribeMode::Command,
+        Some(started) if requested == TranscribeMode::Command => started,
+        _ => requested,
+    }
+}
+
 pub struct Recorder {
     state: Arc<Mutex<RecordingState>>,
     audio_recorder: Arc<Mutex<AudioRecorder>>,
+    started_at: Mutex<Option<Instant>>,
+    started_mode: Mutex<Option<TranscribeMode>>,
 }
 
 impl Recorder {
@@ -48,6 +68,8 @@ impl Recorder {
         Self {
             state: Arc::new(Mutex::new(RecordingState::Ready)),
             audio_recorder: Arc::new(Mutex::new(AudioRecorder::new())),
+            started_at: Mutex::new(None),
+            started_mode: Mutex::new(None),
         }
     }
 
@@ -55,7 +77,12 @@ impl Recorder {
         self.state.lock().unwrap().clone()
     }
 
-    pub fn start_recording(&self, app: &AppHandle, mic_name: &str) -> Result<(), String> {
+    pub fn start_recording(
+        &self,
+        app: &AppHandle,
+        mic_name: &str,
+        mode: TranscribeMode,
+    ) -> Result<(), String> {
         let mut state = self.state.lock().unwrap();
         if *state != RecordingState::Ready {
             return Err("Already recording or transcribing".to_string());
@@ -63,7 +90,12 @@ impl Recorder {
 
         let mut recorder = self.audio_recorder.lock().unwrap();
         recorder.start(mic_name)?;
+        *self.started_at.lock().unwrap() = Some(Instant::now());
+        *self.started_mode.lock().unwrap() = Some(mode);
 
+        // Le voyant affiche « Commande… » au lieu de « J'écoute… »
+        let kind = if mode == TranscribeMode::Command { "command" } else { "dictation" };
+        let _ = app.emit("recording-mode", kind);
         *state = RecordingState::Recording;
         let _ = app.emit("recording-state", RecordingState::Recording);
         Ok(())
@@ -85,6 +117,7 @@ impl Recorder {
             *state = RecordingState::Transcribing;
             let _ = app.emit("recording-state", RecordingState::Transcribing);
         }
+        let mode = effective_mode(self.started_mode.lock().unwrap().take(), mode);
 
         let temp_path = app_dir.join("temp_recording.wav");
 
@@ -93,6 +126,13 @@ impl Recorder {
             *state = RecordingState::Ready;
             let _ = app.emit("recording-state", RecordingState::Ready);
         };
+
+        let duration_ms = self
+            .started_at
+            .lock()
+            .unwrap()
+            .take()
+            .map_or(0, |t| t.elapsed().as_millis() as u64);
 
         // Sauvegarde du WAV (silences coupés). Rien de dit → pas d'appel API.
         let saved = self.audio_recorder.lock().unwrap().stop_and_save(&temp_path);
@@ -130,12 +170,19 @@ impl Recorder {
             }
         }
 
+        if mode == TranscribeMode::Command {
+            let result = self.run_command(app, settings, &temp_path).await;
+            let _ = std::fs::remove_file(&temp_path);
+            reset_state();
+            return result;
+        }
+
         let raw_text = transcribe_groq::transcribe_groq(
             &settings.groq_api_key,
             &temp_path,
             &settings.language,
             &settings.whisper_model,
-            &settings.vocabulary,
+            &vocab::whisper_prompt(&settings.vocabulary),
         )
         .await;
 
@@ -149,20 +196,24 @@ impl Recorder {
             }
         };
 
+        // Corrections apprises (« super base » → « Supabase »), sans appel réseau
+        let text = vocab::apply_replacements(&raw_text, &settings.replacements);
+
         // Correction IA optionnelle : en cas d'échec on garde la transcription brute
-        let raw_text = if settings.ai_correction && !raw_text.trim().is_empty() {
-            match correct_groq::correct_text(&settings.groq_api_key, &raw_text, &settings.vocabulary).await {
+        let text = if settings.ai_correction && !text.trim().is_empty() {
+            match correct_groq::correct_text(&settings.groq_api_key, &text, &settings.vocabulary).await {
                 Ok(t) => t,
                 Err(e) => {
                     eprintln!("[brain-dump] AI correction skipped: {}", e);
-                    raw_text
+                    text
                 }
             }
         } else {
-            raw_text
+            text
         };
 
-        let cleaned = cleanup_text(&raw_text);
+        // Raccourcis vocaux après le cleanup : le texte du snippet est collé tel quel
+        let cleaned = snippets::expand(&cleanup_text(&text), &settings.snippets);
 
         if cleaned.is_empty() {
             let _ = app.emit("nothing-heard", ());
@@ -201,8 +252,123 @@ impl Recorder {
             }
         }
 
+        // Historique hors du chemin critique : le collage est déjà fait
+        if settings.keep_history {
+            let (app, app_dir, text) = (app.clone(), app_dir.clone(), cleaned.clone());
+            let capture_context = settings.capture_context;
+            tauri::async_runtime::spawn_blocking(move || {
+                let target_app = if capture_context {
+                    context::capture_active_context()["app"]
+                        .as_str()
+                        .filter(|a| !a.is_empty())
+                        .map(str::to_string)
+                } else {
+                    None
+                };
+                let now = chrono::Local::now();
+                let entry = history::Entry {
+                    id: now.timestamp_millis(),
+                    date: now.to_rfc3339(),
+                    text,
+                    edited: None,
+                    raw: raw_text,
+                    app: target_app,
+                    duration_ms,
+                };
+                match history::add(&app_dir, entry.clone()) {
+                    Ok(_) => {
+                        let _ = app.emit("history-added", &entry);
+                    }
+                    Err(e) => eprintln!("[brain-dump] History save failed: {}", e),
+                }
+            });
+        }
+
         reset_state();
         Ok(cleaned)
+    }
+
+    /// Mode commande : la sélection est copiée pendant que l'instruction est transcrite (sans
+    /// correction IA), puis remplacée par la réponse du LLM. Le presse-papiers d'origine est
+    /// toujours restauré ; en cas d'échec le texte sélectionné n'est pas touché.
+    async fn run_command(
+        &self,
+        app: &AppHandle,
+        settings: &Settings,
+        wav_path: &PathBuf,
+    ) -> Result<String, String> {
+        let copy = tauri::async_runtime::spawn_blocking(|| {
+            let backup = selection::backup_clipboard();
+            (backup, selection::copy_selection())
+        });
+        let instruction = transcribe_groq::transcribe_groq(
+            &settings.groq_api_key,
+            wav_path,
+            &settings.language,
+            &settings.whisper_model,
+            &vocab::whisper_prompt(&settings.vocabulary),
+        )
+        .await;
+        let (backup, selected) = copy.await.map_err(|e| e.to_string())?;
+
+        let outcome = async {
+            let instruction = instruction.map_err(|e| {
+                eprintln!("[brain-dump] Command transcription failed: {}", e);
+                "Transcription échouée".to_string()
+            })?;
+            let instruction = vocab::apply_replacements(&instruction, &settings.replacements);
+            if instruction.trim().is_empty() {
+                return Ok(None);
+            }
+            let selected = selected.map_err(|e| {
+                eprintln!("[brain-dump] Copy selection failed: {}", e);
+                "Impossible de lire la sélection".to_string()
+            })?;
+            println!(
+                "[brain-dump] Command: {:?} on {} chars",
+                instruction,
+                selected.chars().count()
+            );
+            command_groq::run_command(&settings.groq_api_key, &instruction, &selected)
+                .await
+                .map(Some)
+        }
+        .await;
+
+        match outcome {
+            Ok(Some(result)) => {
+                let pasted = result.clone();
+                let paste = tauri::async_runtime::spawn_blocking(move || {
+                    let res = paste_text(&pasted);
+                    // L'app cible lit le presse-papiers après le Ctrl+V : on attend avant de le restaurer
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                    selection::restore_clipboard(backup);
+                    res
+                })
+                .await
+                .map_err(|e| e.to_string())?;
+                match paste {
+                    Ok(_) => {
+                        let _ = app.emit("paste-done", &result);
+                        Ok(result)
+                    }
+                    Err(e) => {
+                        let _ = app.emit("paste-failed", &e);
+                        Err(e)
+                    }
+                }
+            }
+            Ok(None) => {
+                selection::restore_clipboard(backup);
+                let _ = app.emit("nothing-heard", ());
+                Ok(String::new())
+            }
+            Err(e) => {
+                selection::restore_clipboard(backup);
+                let _ = app.emit("command-failed", &e);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -220,11 +386,25 @@ mod tests {
     fn test_mode_source_label() {
         assert_eq!(TranscribeMode::PasteOnly.source_label(), "desktop_paste_only");
         assert_eq!(TranscribeMode::DbPaste.source_label(), "desktop_db_paste");
+        assert_eq!(TranscribeMode::Command.source_label(), "desktop_command");
     }
 
     #[test]
     fn test_mode_save_to_db() {
         assert!(!TranscribeMode::PasteOnly.save_to_db());
         assert!(TranscribeMode::DbPaste.save_to_db());
+        assert!(!TranscribeMode::Command.save_to_db());
+    }
+
+    #[test]
+    fn test_effective_mode() {
+        use TranscribeMode::*;
+        // Comportement existant : la touche d'arrêt choisit entre les deux dictées
+        assert_eq!(effective_mode(Some(PasteOnly), DbPaste), DbPaste);
+        assert_eq!(effective_mode(Some(DbPaste), PasteOnly), PasteOnly);
+        // Une commande reste une commande, une dictée ne devient jamais une commande
+        assert_eq!(effective_mode(Some(Command), PasteOnly), Command);
+        assert_eq!(effective_mode(Some(DbPaste), Command), DbPaste);
+        assert_eq!(effective_mode(None, Command), Command);
     }
 }

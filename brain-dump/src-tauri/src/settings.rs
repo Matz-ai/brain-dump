@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::snippets::Snippet;
+use crate::vocab::Replacement;
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Settings {
@@ -15,6 +18,8 @@ pub struct Settings {
     pub hotkey_paste_only: String,
     #[serde(rename = "hotkeyDbPaste")]
     pub hotkey_db_paste: String,
+    #[serde(rename = "hotkeyCommand")]
+    pub hotkey_command: String,
 
     pub language: String,
 
@@ -33,6 +38,16 @@ pub struct Settings {
 
     #[serde(rename = "aiCorrection")]
     pub ai_correction: bool,
+
+    pub snippets: Vec<Snippet>,
+
+    #[serde(rename = "keepHistory")]
+    pub keep_history: bool,
+
+    /// Paires apprises depuis l'historique, appliquées juste après Whisper
+    pub replacements: Vec<Replacement>,
+    #[serde(rename = "ignoredSuggestions")]
+    pub ignored_suggestions: Vec<String>,
 }
 
 impl Default for Settings {
@@ -43,6 +58,7 @@ impl Default for Settings {
             recording_mode: "toggle".to_string(),
             hotkey_paste_only: "CmdOrCtrl+Shift+Space".to_string(),
             hotkey_db_paste: "CmdOrCtrl+Shift+V".to_string(),
+            hotkey_command: "CmdOrCtrl+Shift+E".to_string(),
             language: "fr".to_string(),
             supabase_url: String::new(),
             supabase_anon_key: String::new(),
@@ -50,6 +66,10 @@ impl Default for Settings {
             whisper_model: "whisper-large-v3".to_string(),
             vocabulary: String::new(),
             ai_correction: false,
+            snippets: Vec::new(),
+            keep_history: true,
+            replacements: Vec::new(),
+            ignored_suggestions: Vec::new(),
         }
     }
 }
@@ -147,8 +167,12 @@ mod tests {
         assert_eq!(loaded.vocabulary, "");
         assert_eq!(loaded.hotkey_paste_only, "CmdOrCtrl+Shift+Space");
         assert_eq!(loaded.hotkey_db_paste, "CmdOrCtrl+Shift+V");
+        assert_eq!(loaded.hotkey_command, "CmdOrCtrl+Shift+E");
         assert!(loaded.capture_context);
         assert!(!loaded.ai_correction);
+        assert!(loaded.snippets.is_empty());
+        assert!(loaded.keep_history);
+        assert!(loaded.replacements.is_empty());
 
         let _ = fs::remove_dir_all(&dir);
     }
