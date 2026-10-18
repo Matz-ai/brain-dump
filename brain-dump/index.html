@@ -99,6 +99,18 @@
               </div>
             </div>
           </div>
+          <div id="failed-recording" class="settings-list suggestion-card" hidden>
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Une dictée n'a pas pu être transcrite</span>
+                <span class="label-hint" id="failed-recording-hint">L'audio est gardé. Réessaie quand la connexion revient : le texte sera copié, prêt à coller avec <kbd>Ctrl</kbd>+<kbd>V</kbd>.</span>
+              </div>
+              <div class="suggestion-actions">
+                <button id="failed-retry-btn" class="btn-secondary">Réessayer</button>
+                <button id="failed-discard-btn" class="btn-secondary">Supprimer</button>
+              </div>
+            </div>
+          </div>
           <div id="vocab-suggestions"></div>
           <div class="history-toolbar">
             <input type="text" id="history-search" placeholder="Rechercher…" autocomplete="off" spellcheck="false" />

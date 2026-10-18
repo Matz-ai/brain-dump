@@ -82,6 +82,10 @@ const historyList = document.getElementById("history-list")!;
 const historySearch = document.getElementById("history-search") as HTMLInputElement;
 const historyClearBtn = document.getElementById("history-clear-btn") as HTMLButtonElement;
 const vocabSuggestions = document.getElementById("vocab-suggestions")!;
+const failedRecording = document.getElementById("failed-recording")!;
+const failedRecordingHint = document.getElementById("failed-recording-hint")!;
+const failedRetryBtn = document.getElementById("failed-retry-btn") as HTMLButtonElement;
+const failedDiscardBtn = document.getElementById("failed-discard-btn") as HTMLButtonElement;
 let historyEntries: HistoryEntry[] = [];
 let pendingSuggestions: Replacement[] = [];
 const snippetList = document.getElementById("snippet-list")!;
@@ -378,6 +382,35 @@ async function loadHistory() {
   historyEntries = await invoke<HistoryEntry[]>("get_history");
   renderHistory();
 }
+
+// ── Dictée dont la transcription a échoué ──────────────
+
+async function refreshFailedRecording() {
+  failedRecording.hidden = !(await invoke<boolean>("has_failed_recording"));
+}
+
+failedRetryBtn.addEventListener("click", async () => {
+  failedRetryBtn.disabled = true;
+  failedRetryBtn.textContent = "Transcription…";
+  try {
+    const text = await invoke<string>("retry_failed_recording");
+    failedRecording.hidden = true;
+    if (!text) alert("Rien n'a été entendu dans cette dictée.");
+    refreshQuota();
+  } catch (e) {
+    failedRecordingHint.textContent = `Nouvel échec : ${e}. L'audio est toujours gardé.`;
+  } finally {
+    failedRetryBtn.disabled = false;
+    failedRetryBtn.textContent = "Réessayer";
+  }
+});
+
+failedDiscardBtn.addEventListener("click", async () => {
+  await invoke("discard_failed_recording");
+  failedRecording.hidden = true;
+});
+
+listen("transcription-failed", () => refreshFailedRecording());
 
 // ── Dictionnaire qui apprend ───────────────────────────
 
@@ -761,6 +794,7 @@ async function syncOverlayState() {
 
 // Init
 loadSettings().then(loadHistory);
+refreshFailedRecording();
 refreshQuota();
 syncOverlayState();
 getVersion().then((v) => (versionText.textContent = `v${v}`));

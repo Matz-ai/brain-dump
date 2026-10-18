@@ -237,6 +237,11 @@
       listen("paste-done", () => flash("pasted", "✓ Collé", 1800));
       listen("nothing-heard", () => flash("empty", "Rien entendu", 1800));
       listen("paste-failed", () => flash("failed", "✗ Échec", 2500));
+      listen("transcription-failed", (event) => {
+        // event.payload : l'audio a bien été gardé pour « Réessayer »
+        flash("failed", event.payload ? "✗ Échec, dictée gardée" : "✗ Échec", 4500);
+        fitWindowToPill();
+      });
       listen("command-failed", (event) => {
         flash("failed", `✗ ${event.payload}`, 4500);
         fitWindowToPill();

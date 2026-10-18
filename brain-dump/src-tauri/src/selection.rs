@@ -34,6 +34,17 @@ pub fn restore_clipboard(backup: ClipboardBackup) {
     }
 }
 
+/// Restores the backup only if the clipboard still holds what we pasted: anything else means
+/// the user copied something meanwhile, and that wins.
+pub fn restore_clipboard_if_holds(backup: ClipboardBackup, pasted: &str) {
+    let holds_pasted = arboard::Clipboard::new()
+        .and_then(|mut c| c.get_text())
+        .map_or(false, |text| text == pasted);
+    if holds_pasted {
+        restore_clipboard(backup);
+    }
+}
+
 /// Copies the current selection of the active app (simulated Ctrl+C) and returns it,
 /// or an empty string when nothing is selected. Overwrites the clipboard: back it up first.
 pub fn copy_selection() -> Result<String, String> {

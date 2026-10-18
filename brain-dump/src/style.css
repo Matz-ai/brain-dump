@@ -568,6 +568,10 @@ kbd {
   background: var(--accent-subtle);
 }
 
+#failed-recording[hidden] {
+  display: none;
+}
+
 .suggestion-actions {
   display: flex;
   gap: 8px;

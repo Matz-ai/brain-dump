@@ -9,7 +9,7 @@ use tauri_plugin_updater::UpdaterExt;
 use brain_dump_lib::audio;
 use brain_dump_lib::history;
 use brain_dump_lib::quota;
-use brain_dump_lib::recorder::{Recorder, RecordingState, TranscribeMode};
+use brain_dump_lib::recorder::{failed_recording_path, Recorder, RecordingState, TranscribeMode};
 use brain_dump_lib::settings::Settings;
 use brain_dump_lib::vocab;
 
@@ -170,6 +170,25 @@ fn copy_text(text: String) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn has_failed_recording(state: State<AppState>) -> bool {
+    failed_recording_path(&state.app_dir).exists()
+}
+
+#[tauri::command]
+async fn retry_failed_recording(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let settings = state.settings.lock().unwrap().clone();
+    state.recorder.retry_failed(&app, &settings, &state.app_dir).await
+}
+
+#[tauri::command]
+fn discard_failed_recording(state: State<AppState>) {
+    let _ = std::fs::remove_file(failed_recording_path(&state.app_dir));
+}
+
 #[derive(serde::Serialize)]
 struct EditResult {
     entry: history::Entry,
@@ -323,6 +342,9 @@ fn main() {
             clear_history,
             copy_text,
             edit_history_entry,
+            has_failed_recording,
+            retry_failed_recording,
+            discard_failed_recording,
             update_hotkey,
             get_overlay_visible,
             set_overlay_visible,

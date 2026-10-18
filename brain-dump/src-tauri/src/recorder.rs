@@ -186,34 +186,21 @@ impl Recorder {
         )
         .await;
 
-        let _ = std::fs::remove_file(&temp_path);
-
         let raw_text = match raw_text {
-            Ok(t) => t,
+            Ok(t) => {
+                let _ = std::fs::remove_file(&temp_path);
+                t
+            }
             Err(e) => {
+                // L'audio est gardé pour « Réessayer » dans l'historique au lieu d'être perdu
+                let kept = std::fs::rename(&temp_path, failed_recording_path(app_dir)).is_ok();
+                let _ = app.emit("transcription-failed", kept);
                 reset_state();
                 return Err(e);
             }
         };
 
-        // Corrections apprises (« super base » → « Supabase »), sans appel réseau
-        let text = vocab::apply_replacements(&raw_text, &settings.replacements);
-
-        // Correction IA optionnelle : en cas d'échec on garde la transcription brute
-        let text = if settings.ai_correction && !text.trim().is_empty() {
-            match correct_groq::correct_text(&settings.groq_api_key, &text, &settings.vocabulary).await {
-                Ok(t) => t,
-                Err(e) => {
-                    eprintln!("[brain-dump] AI correction skipped: {}", e);
-                    text
-                }
-            }
-        } else {
-            text
-        };
-
-        // Raccourcis vocaux après le cleanup : le texte du snippet est collé tel quel
-        let cleaned = snippets::expand(&cleanup_text(&text), &settings.snippets);
+        let cleaned = finish_text(settings, &raw_text).await;
 
         if cleaned.is_empty() {
             let _ = app.emit("nothing-heard", ());
@@ -241,10 +228,18 @@ impl Recorder {
             }
         }
 
-        // Paste — toujours (les 2 modes pastent)
+        // Paste — toujours (les 2 modes pastent). Le presse-papiers d'origine est rendu ensuite ;
+        // si le collage échoue, la dictée y reste pour un Ctrl+V à la main.
+        let backup = selection::backup_clipboard();
         match paste_text(&cleaned) {
             Ok(_) => {
                 let _ = app.emit("paste-done", &cleaned);
+                let pasted = cleaned.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    // L'app cible lit le presse-papiers après le Ctrl+V : on attend avant de le restaurer
+                    std::thread::sleep(std::time::Duration::from_millis(400));
+                    selection::restore_clipboard_if_holds(backup, &pasted);
+                });
             }
             Err(e) => {
                 eprintln!("[brain-dump] Paste failed: {}", e);
@@ -254,37 +249,53 @@ impl Recorder {
 
         // Historique hors du chemin critique : le collage est déjà fait
         if settings.keep_history {
-            let (app, app_dir, text) = (app.clone(), app_dir.clone(), cleaned.clone());
-            let capture_context = settings.capture_context;
-            tauri::async_runtime::spawn_blocking(move || {
-                let target_app = if capture_context {
-                    context::capture_active_context()["app"]
-                        .as_str()
-                        .filter(|a| !a.is_empty())
-                        .map(str::to_string)
-                } else {
-                    None
-                };
-                let now = chrono::Local::now();
-                let entry = history::Entry {
-                    id: now.timestamp_millis(),
-                    date: now.to_rfc3339(),
-                    text,
-                    edited: None,
-                    raw: raw_text,
-                    app: target_app,
-                    duration_ms,
-                };
-                match history::add(&app_dir, entry.clone()) {
-                    Ok(_) => {
-                        let _ = app.emit("history-added", &entry);
-                    }
-                    Err(e) => eprintln!("[brain-dump] History save failed: {}", e),
-                }
-            });
+            save_history(app, app_dir, cleaned.clone(), raw_text, duration_ms, settings.capture_context);
         }
 
         reset_state();
+        Ok(cleaned)
+    }
+
+    /// Retranscrit la dernière dictée dont la transcription a échoué. On ne sait plus où la
+    /// coller : le texte est copié dans le presse-papiers et ajouté à l'historique.
+    /// En cas de nouvel échec, l'audio reste disponible.
+    pub async fn retry_failed(
+        &self,
+        app: &AppHandle,
+        settings: &Settings,
+        app_dir: &PathBuf,
+    ) -> Result<String, String> {
+        let path = failed_recording_path(app_dir);
+        if !path.exists() {
+            return Err("Aucune dictée en attente".to_string());
+        }
+        if let CheckResult::Blocked(status) = quota::check_and_increment(app_dir) {
+            return Err(format!(
+                "Groq free tier épuisé pour aujourd'hui ({}/{}). Reset à minuit UTC.",
+                status.used, status.limit
+            ));
+        }
+
+        let raw_text = transcribe_groq::transcribe_groq(
+            &settings.groq_api_key,
+            &path,
+            &settings.language,
+            &settings.whisper_model,
+            &vocab::whisper_prompt(&settings.vocabulary),
+        )
+        .await?;
+        let _ = std::fs::remove_file(&path);
+
+        let cleaned = finish_text(settings, &raw_text).await;
+        if cleaned.is_empty() {
+            return Ok(String::new());
+        }
+        arboard::Clipboard::new()
+            .and_then(|mut c| c.set_text(cleaned.clone()))
+            .map_err(|e| e.to_string())?;
+        if settings.keep_history {
+            save_history(app, app_dir, cleaned.clone(), raw_text, 0, false);
+        }
         Ok(cleaned)
     }
 
@@ -370,6 +381,70 @@ impl Recorder {
             }
         }
     }
+}
+
+pub fn failed_recording_path(app_dir: &PathBuf) -> PathBuf {
+    app_dir.join("failed_recording.wav")
+}
+
+/// Corrections apprises, correction IA optionnelle, cleanup puis raccourcis vocaux.
+async fn finish_text(settings: &Settings, raw_text: &str) -> String {
+    // Corrections apprises (« super base » → « Supabase »), sans appel réseau
+    let text = vocab::apply_replacements(raw_text, &settings.replacements);
+
+    // Correction IA optionnelle : en cas d'échec on garde la transcription brute
+    let text = if settings.ai_correction && !text.trim().is_empty() {
+        match correct_groq::correct_text(&settings.groq_api_key, &text, &settings.vocabulary).await {
+            Ok(t) => t,
+            Err(e) => {
+                eprintln!("[brain-dump] AI correction skipped: {}", e);
+                text
+            }
+        }
+    } else {
+        text
+    };
+
+    // Raccourcis vocaux après le cleanup : le texte du snippet est collé tel quel
+    snippets::expand(&cleanup_text(&text), &settings.snippets)
+}
+
+/// Écrit l'entrée d'historique en tâche de fond et prévient l'UI.
+fn save_history(
+    app: &AppHandle,
+    app_dir: &PathBuf,
+    text: String,
+    raw_text: String,
+    duration_ms: u64,
+    capture_context: bool,
+) {
+    let (app, app_dir) = (app.clone(), app_dir.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let target_app = if capture_context {
+            context::capture_active_context()["app"]
+                .as_str()
+                .filter(|a| !a.is_empty())
+                .map(str::to_string)
+        } else {
+            None
+        };
+        let now = chrono::Local::now();
+        let entry = history::Entry {
+            id: now.timestamp_millis(),
+            date: now.to_rfc3339(),
+            text,
+            edited: None,
+            raw: raw_text,
+            app: target_app,
+            duration_ms,
+        };
+        match history::add(&app_dir, entry.clone()) {
+            Ok(_) => {
+                let _ = app.emit("history-added", &entry);
+            }
+            Err(e) => eprintln!("[brain-dump] History save failed: {}", e),
+        }
+    });
 }
 
 #[cfg(test)]
