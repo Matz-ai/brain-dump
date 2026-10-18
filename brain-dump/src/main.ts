@@ -1,3 +1,4 @@
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -88,6 +89,7 @@ const snippetAddBtn = document.getElementById("snippet-add-btn") as HTMLButtonEl
 const quotaBadge = document.getElementById("quota-badge")!;
 const quotaText = document.getElementById("quota-text")!;
 const quotaFill = document.getElementById("quota-fill")!;
+const versionText = document.getElementById("version-text")!;
 const overlayShowBtn = document.getElementById("overlay-show-btn") as HTMLButtonElement;
 const overlayHideBtn = document.getElementById("overlay-hide-btn") as HTMLButtonElement;
 const overlayRepositionBtn = document.getElementById("overlay-reposition-btn") as HTMLButtonElement;
@@ -761,4 +763,5 @@ async function syncOverlayState() {
 loadSettings().then(loadHistory);
 refreshQuota();
 syncOverlayState();
+getVersion().then((v) => (versionText.textContent = `v${v}`));
 setInterval(refreshQuota, 30_000);
