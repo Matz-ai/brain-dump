@@ -38,6 +38,12 @@ interface HistoryEntry {
   durationMs: number;
 }
 
+interface DayStats {
+  words: number;
+  durationMs: number;
+  count: number;
+}
+
 interface Snippet {
   trigger: string;
   text: string;
@@ -98,6 +104,7 @@ const overlayShowBtn = document.getElementById("overlay-show-btn") as HTMLButton
 const overlayHideBtn = document.getElementById("overlay-hide-btn") as HTMLButtonElement;
 const overlayRepositionBtn = document.getElementById("overlay-reposition-btn") as HTMLButtonElement;
 const quitAppBtn = document.getElementById("quit-app-btn") as HTMLButtonElement;
+const autostartCheck = document.getElementById("autostart") as HTMLInputElement;
 
 // Section navigation
 const navItems = document.querySelectorAll(".nav-item");
@@ -382,6 +389,213 @@ async function loadHistory() {
   historyEntries = await invoke<HistoryEntry[]>("get_history");
   renderHistory();
 }
+
+// ── Stats ──────────────────────────────────────────────
+
+/** Vitesse de frappe de référence pour estimer le temps gagné */
+const TYPING_WPM = 40;
+const CHART_DAYS = 14;
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+let stats: Record<string, DayStats> = {};
+
+const statWords = document.getElementById("stat-words")!;
+const statWordsToday = document.getElementById("stat-words-today")!;
+const statWpm = document.getElementById("stat-wpm")!;
+const statSaved = document.getElementById("stat-saved")!;
+const chartWords = document.getElementById("chart-words")!;
+const chartWpm = document.getElementById("chart-wpm")!;
+
+const numberFormat = new Intl.NumberFormat("fr-FR");
+const dayFormat = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const shortDayFormat = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" });
+
+function dayKey(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function wpm(d: DayStats): number {
+  return d.durationMs > 0 ? d.words / (d.durationMs / 60_000) : 0;
+}
+
+function formatMinutes(min: number): string {
+  if (min < 1) return "< 1 min";
+  if (min < 60) return `${Math.round(min)} min`;
+  const h = Math.floor(min / 60);
+  const m = Math.round(min % 60);
+  return m ? `${h} h ${String(m).padStart(2, "0")}` : `${h} h`;
+}
+
+function lastDays(): { date: Date; day: DayStats | undefined }[] {
+  const out = [];
+  for (let i = CHART_DAYS - 1; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    out.push({ date, day: stats[dayKey(date)] });
+  }
+  return out;
+}
+
+function renderStats() {
+  let words = 0;
+  let durationMs = 0;
+  for (const d of Object.values(stats)) {
+    words += d.words;
+    durationMs += d.durationMs;
+  }
+  const today = stats[dayKey(new Date())];
+  statWords.textContent = numberFormat.format(words);
+  statWordsToday.textContent = `dont ${numberFormat.format(today?.words ?? 0)} aujourd'hui`;
+  statWpm.textContent = durationMs ? String(Math.round(wpm({ words, durationMs, count: 0 }))) : "–";
+  const savedMin = words / TYPING_WPM - durationMs / 60_000;
+  statSaved.textContent = words ? formatMinutes(Math.max(0, savedMin)) : "–";
+
+  drawBarChart();
+  drawLineChart();
+}
+
+function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
+const CHART_H = 120;
+const PAD = { top: 18, bottom: 22, left: 4, right: 4 };
+
+/** Empty chart: svg, baseline, first / last day labels, max label and the shared tooltip. */
+function chartFrame(container: HTMLElement, maxText: string) {
+  container.innerHTML = "";
+  const width = container.clientWidth;
+  const svg = svgEl("svg", { width, height: CHART_H, viewBox: `0 0 ${width} ${CHART_H}` });
+  const baseY = CHART_H - PAD.bottom;
+  svg.append(svgEl("line", { x1: PAD.left, x2: width - PAD.right, y1: baseY, y2: baseY, class: "chart-axis" }));
+  const days = lastDays();
+  const slot = (width - PAD.left - PAD.right) / days.length;
+  const labels: [number, number, string, string][] = [
+    [PAD.left, CHART_H - 6, shortDayFormat.format(days[0].date), "start"],
+    [width - PAD.right, CHART_H - 6, "aujourd'hui", "end"],
+    [width - PAD.right, 10, maxText, "end"],
+  ];
+  for (const [x, y, text, anchor] of labels) {
+    const t = svgEl("text", { x, y, "text-anchor": anchor, class: "chart-label" });
+    t.textContent = text;
+    svg.append(t);
+  }
+  const tooltip = document.createElement("div");
+  tooltip.className = "chart-tooltip";
+  tooltip.hidden = true;
+  container.append(svg, tooltip);
+
+  const showTip = (x: number, title: string, body: string) => {
+    tooltip.innerHTML = "";
+    const strong = document.createElement("strong");
+    strong.textContent = title;
+    tooltip.append(strong, body);
+    tooltip.hidden = false;
+    const w = tooltip.offsetWidth;
+    tooltip.style.left = `${Math.min(Math.max(0, x - w / 2), width - w)}px`;
+  };
+  const hideTip = () => (tooltip.hidden = true);
+  return { svg, baseY, days, slot, plotH: baseY - PAD.top, showTip, hideTip };
+}
+
+function drawBarChart() {
+  if (!chartWords.clientWidth) return;
+  const max = Math.max(1, ...lastDays().map((d) => d.day?.words ?? 0));
+  const { svg, baseY, days, slot, plotH, showTip, hideTip } = chartFrame(
+    chartWords,
+    `${numberFormat.format(max)} mots`
+  );
+
+  days.forEach(({ date, day }, i) => {
+    const x = PAD.left + i * slot;
+    const words = day?.words ?? 0;
+    const count = day?.count ?? 0;
+    const h = words ? Math.max(4, (words / max) * plotH) : 0;
+    const barW = Math.max(4, slot - 2); // 2px d'écart entre les barres
+    if (h) {
+      // Haut arrondi à 4px, base posée sur l'axe
+      const r = Math.min(4, barW / 2, h);
+      const y = baseY - h;
+      svg.append(
+        svgEl("path", {
+          class: "chart-bar",
+          d: `M${x},${baseY} V${y + r} Q${x},${y} ${x + r},${y} H${x + barW - r} Q${x + barW},${y} ${x + barW},${y + r} V${baseY} Z`,
+        })
+      );
+    }
+    // Zone de survol sur toute la hauteur, plus large que la barre
+    const hit = svgEl("rect", { x, y: 0, width: slot, height: baseY, class: "chart-hit" });
+    hit.addEventListener("mouseenter", () =>
+      showTip(
+        x + slot / 2,
+        dayFormat.format(date),
+        `${numberFormat.format(words)} mots · ${count} dictée${count > 1 ? "s" : ""}`
+      )
+    );
+    hit.addEventListener("mouseleave", hideTip);
+    svg.append(hit);
+  });
+}
+
+function drawLineChart() {
+  if (!chartWpm.clientWidth) return;
+  const values = lastDays().map((d) => (d.day && d.day.durationMs ? wpm(d.day) : null));
+  const max = Math.max(1, ...values.map((v) => v ?? 0));
+  const { svg, baseY, days, slot, plotH, showTip, hideTip } = chartFrame(
+    chartWpm,
+    `${Math.round(max)} mots/min`
+  );
+  const cx = (i: number) => PAD.left + i * slot + slot / 2;
+  const cy = (v: number) => baseY - (v / max) * plotH;
+
+  // Les jours sans dictée coupent la ligne au lieu de la faire tomber à zéro
+  let d = "";
+  values.forEach((v, i) => {
+    if (v === null) return;
+    d += `${i > 0 && values[i - 1] !== null ? "L" : "M"}${cx(i)},${cy(v)} `;
+  });
+  if (d) svg.append(svgEl("path", { d, class: "chart-line" }));
+  values.forEach((v, i) => {
+    if (v !== null) svg.append(svgEl("circle", { cx: cx(i), cy: cy(v), r: 4, class: "chart-dot" }));
+  });
+
+  const cross = svgEl("line", { y1: PAD.top - 6, y2: baseY, class: "chart-crosshair", visibility: "hidden" });
+  svg.append(cross);
+  days.forEach(({ date }, i) => {
+    const hit = svgEl("rect", { x: PAD.left + i * slot, y: 0, width: slot, height: baseY, class: "chart-hit" });
+    hit.addEventListener("mouseenter", () => {
+      cross.setAttribute("x1", String(cx(i)));
+      cross.setAttribute("x2", String(cx(i)));
+      cross.setAttribute("visibility", "visible");
+      const v = values[i];
+      showTip(cx(i), dayFormat.format(date), v === null ? "aucune dictée" : `${Math.round(v)} mots/min`);
+    });
+    hit.addEventListener("mouseleave", () => {
+      cross.setAttribute("visibility", "hidden");
+      hideTip();
+    });
+    svg.append(hit);
+  });
+}
+
+async function loadStats() {
+  stats = await invoke<Record<string, DayStats>>("get_stats");
+  renderStats();
+}
+
+// Redessine quand la largeur change (fenêtre redimensionnée, onglet Historique affiché)
+new ResizeObserver(() => {
+  drawBarChart();
+  drawLineChart();
+}).observe(chartWords);
+
+listen<Record<string, DayStats>>("stats-updated", (event) => {
+  stats = event.payload;
+  renderStats();
+});
 
 // ── Dictée dont la transcription a échoué ──────────────
 
@@ -792,8 +1006,20 @@ async function syncOverlayState() {
   }
 }
 
+// ── Lancement au démarrage ─────────────────────────────
+autostartCheck.addEventListener("change", async () => {
+  try {
+    await invoke("set_autostart", { enabled: autostartCheck.checked });
+  } catch (e) {
+    autostartCheck.checked = !autostartCheck.checked;
+    alert(`Impossible de modifier le lancement au démarrage : ${e}`);
+  }
+});
+
 // Init
 loadSettings().then(loadHistory);
+loadStats();
+invoke<boolean>("get_autostart").then((on) => (autostartCheck.checked = on));
 refreshFailedRecording();
 refreshQuota();
 syncOverlayState();

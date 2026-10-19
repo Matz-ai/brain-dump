@@ -110,6 +110,18 @@ impl AudioRecorder {
         Ok(())
     }
 
+    /// Loudness of the last ~50 ms captured, from 0 (silence) to 1 (loud speech), for the overlay meter.
+    pub fn level(&self) -> f32 {
+        let samples = self.samples.lock().unwrap();
+        let window = (self.source_sample_rate as usize * self.source_channels as usize) / 20;
+        let tail = &samples[samples.len().saturating_sub(window)..];
+        if tail.is_empty() {
+            return 0.0;
+        }
+        let rms = (tail.iter().map(|x| x * x).sum::<f32>() / tail.len() as f32).sqrt();
+        level_from_rms(rms)
+    }
+
     /// Stops the stream and writes a 16kHz mono WAV with leading/trailing silence trimmed.
     /// Returns Ok(false) (and writes nothing) when no speech was detected: sending silence
     /// to Whisper is what produces "Sous-titres Radio-Canada"-style hallucinations.
@@ -168,6 +180,14 @@ impl AudioRecorder {
         println!("[Typr] WAV saved to {:?}", output_path);
         Ok(true)
     }
+}
+
+/// Maps RMS to 0..1 on a dB scale: -50 dBFS (room noise) → 0, -12 dBFS (loud voice) → 1.
+fn level_from_rms(rms: f32) -> f32 {
+    const FLOOR_DB: f32 = -50.0;
+    const CEIL_DB: f32 = -12.0;
+    let db = 20.0 * rms.max(1e-6).log10();
+    ((db - FLOOR_DB) / (CEIL_DB - FLOOR_DB)).clamp(0.0, 1.0)
 }
 
 const FRAME_MS: usize = 20;
@@ -247,6 +267,15 @@ mod tests {
     use super::*;
 
     const SR: usize = 16000;
+
+    #[test]
+    fn test_level_from_rms() {
+        assert_eq!(level_from_rms(0.0), 0.0);
+        assert_eq!(level_from_rms(0.001), 0.0); // -60 dBFS : bruit de fond
+        assert_eq!(level_from_rms(0.5), 1.0); // -6 dBFS : plafonné
+        let voice = level_from_rms(0.05); // -26 dBFS : voix normale
+        assert!(voice > 0.5 && voice < 0.8, "{voice}");
+    }
 
     fn tone(ms: usize, amp: f32) -> Vec<f32> {
         (0..SR * ms / 1000)

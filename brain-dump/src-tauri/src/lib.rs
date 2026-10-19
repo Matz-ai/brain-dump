@@ -13,6 +13,7 @@ pub mod history;
 pub mod vocab;
 pub mod command_groq;
 pub mod selection;
+pub mod stats;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

@@ -1,22 +1,24 @@
 :root {
-  --bg:             #09090b;
-  --sidebar-bg:     #0c0c0e;
-  --surface:        #131316;
-  --surface-hover:  #1a1a1f;
-  --surface-active: #1f1f26;
-  --text:           #ececef;
-  --text-secondary: #6e6e76;
-  --text-tertiary:  #3e3e44;
-  --accent:         #5e6ad2;
-  --accent-hover:   #6872db;
-  --accent-subtle:  rgba(94, 106, 210, 0.12);
-  --green:          #3ecf6e;
-  --red:            #e5484d;
-  --yellow:         #f5a623;
-  --border:         rgba(255, 255, 255, 0.06);
-  --border-strong:  rgba(255, 255, 255, 0.1);
-  --radius:         6px;
-  --radius-lg:      10px;
+  --bg:             #faf8f5;
+  --sidebar-bg:     #f2efea;
+  --surface:        #ffffff;
+  --surface-hover:  #e9e5de;
+  --surface-active: #ffffff;
+  --well:           #efebe5;
+  --text:           #1f1d1a;
+  --text-secondary: #5f5a53;
+  --text-tertiary:  #948e85;
+  --accent:         #6d5ae6;
+  --accent-hover:   #5b48d6;
+  --accent-subtle:  rgba(109, 90, 230, 0.10);
+  --green:          #1f9d55;
+  --red:            #d93a3f;
+  --yellow:         #c98500;
+  --border:         rgba(31, 29, 26, 0.08);
+  --border-strong:  rgba(31, 29, 26, 0.15);
+  --shadow:         0 1px 2px rgba(31, 29, 26, 0.04), 0 2px 8px rgba(31, 29, 26, 0.05);
+  --radius:         8px;
+  --radius-lg:      14px;
   --font:           "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
   --transition:     150ms ease;
 }
@@ -33,7 +35,7 @@ body {
   color: var(--text);
   user-select: none;
   -webkit-user-select: none;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -107,6 +109,7 @@ body {
   background: var(--surface);
   border-radius: var(--radius);
   border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 #status-dot {
@@ -141,9 +144,9 @@ body {
 }
 
 #status-text {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
-  color: var(--text-secondary);
+  color: var(--text);
 }
 
 /* ── Navigation ─────────────────────────────────────── */
@@ -160,11 +163,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border-radius: var(--radius);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   cursor: pointer;
   transition: all var(--transition);
@@ -180,9 +183,11 @@ body {
   color: var(--text);
   background: var(--surface-active);
   font-weight: 500;
+  box-shadow: var(--shadow);
 }
 
 .nav-item.active::before {
+  display: none;
   content: '';
   position: absolute;
   left: 0;
@@ -203,6 +208,7 @@ body {
 
 .nav-item.active .nav-icon {
   opacity: 1;
+  color: var(--accent);
 }
 
 /* ── Sidebar Footer ─────────────────────────────────── */
@@ -225,7 +231,7 @@ body {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: var(--font);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: background var(--transition), color var(--transition), border-color var(--transition);
@@ -254,7 +260,8 @@ body {
 
 .content-section {
   display: none;
-  padding: 32px 40px;
+  max-width: 860px;
+  padding: 36px 44px 48px;
   animation: fadeIn 200ms ease;
 }
 
@@ -272,15 +279,15 @@ body {
 }
 
 .section-title {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 650;
   color: var(--text);
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
 .section-desc {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--text-secondary);
   font-weight: 400;
 }
@@ -295,6 +302,7 @@ body {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
 }
 
 .setting-row {
@@ -302,7 +310,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 32px;
-  padding: 14px 0;
+  padding: 16px 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -317,17 +325,17 @@ body {
 
 .label-text {
   display: block;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 550;
   color: var(--text);
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .label-hint {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .setting-control {
@@ -343,13 +351,13 @@ select,
 input[type="text"]:not(.vocab-input),
 input[type="password"] {
   width: 260px;
-  padding: 7px 12px;
-  background: var(--bg);
+  padding: 8px 12px;
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
   transition: border-color var(--transition);
   appearance: none;
@@ -397,7 +405,7 @@ input::placeholder {
   flex-wrap: wrap;
   align-content: flex-start;
   gap: 6px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   cursor: text;
@@ -414,8 +422,8 @@ input::placeholder {
   align-items: center;
   gap: 4px;
   padding: 3px 4px 3px 10px;
-  background: var(--accent-subtle, rgba(100, 150, 255, 0.12));
-  border: 1px solid var(--accent, #4a9eff);
+  background: var(--accent-subtle);
+  border: 1px solid rgba(109, 90, 230, 0.35);
   border-radius: 999px;
   color: var(--text);
   font-size: 12px;
@@ -447,8 +455,8 @@ input::placeholder {
 }
 
 .vocab-chip-remove:hover {
-  background: rgba(244, 67, 54, 0.18);
-  color: #ff7a6e;
+  background: rgba(217, 58, 63, 0.12);
+  color: var(--red);
 }
 
 .vocab-input {
@@ -460,7 +468,7 @@ input::placeholder {
   border: none;
   outline: none;
   font-family: var(--font);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.4;
 }
 
@@ -496,14 +504,14 @@ input::placeholder {
 
 .snippet-text {
   width: 100%;
-  padding: 7px 12px;
-  background: var(--bg);
+  padding: 8px 12px;
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: var(--font);
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: 14px;
+  line-height: 1.5;
   resize: vertical;
   outline: none;
   transition: border-color var(--transition);
@@ -519,8 +527,8 @@ input::placeholder {
 }
 
 .muted-hint {
-  font-size: 12px;
-  color: var(--text-tertiary);
+  font-size: 13px;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -559,8 +567,31 @@ kbd {
 }
 
 .history-meta {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
+}
+
+.history-card .snippet-text {
+  padding: 6px 10px;
+  margin: 0 -10px;
+  width: calc(100% + 20px);
+  border-color: transparent;
+  resize: none;
+  field-sizing: content;
+  min-height: 0;
+}
+
+.history-card .snippet-text:hover {
+  background: var(--bg);
+}
+
+.history-card .snippet-text:focus {
+  background: var(--surface);
+  border-color: var(--accent);
+}
+
+.history-card .btn-secondary {
+  padding: 5px 12px;
 }
 
 .suggestion-card {
@@ -583,10 +614,10 @@ kbd {
 .toggle-group {
   display: inline-flex;
   gap: 2px;
-  background: var(--bg);
+  background: var(--well);
   border-radius: var(--radius);
-  padding: 2px;
-  border: 1px solid var(--border);
+  padding: 3px;
+  border: none;
 }
 
 .toggle-btn {
@@ -596,7 +627,7 @@ kbd {
   background: transparent;
   color: var(--text-secondary);
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all var(--transition);
@@ -608,9 +639,9 @@ kbd {
 }
 
 .toggle-btn.active {
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(31, 29, 26, 0.12);
 }
 
 /* ── Buttons ────────────────────────────────────────── */
@@ -685,19 +716,19 @@ kbd {
   border-radius: var(--radius);
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text);
   letter-spacing: 0.02em;
 }
 
 .hotkey-btn {
   display: inline-block;
-  padding: 6px 14px;
-  background: var(--bg);
-  border: 1px solid var(--border-strong);
+  padding: 7px 14px;
+  background: var(--well);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: 13px;
+  color: var(--text);
   letter-spacing: 0.02em;
   cursor: pointer;
   transition: var(--transition);
@@ -726,12 +757,12 @@ kbd {
 
 .btn-secondary {
   padding: 7px 14px;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   font-family: var(--font);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: border-color var(--transition), background var(--transition);
@@ -766,7 +797,7 @@ kbd {
   width: 36px;
   height: 20px;
   border-radius: 999px;
-  background: var(--border-strong);
+  background: #d6d1c9;
   transition: background var(--transition);
   position: relative;
 }
@@ -780,6 +811,7 @@ kbd {
   height: 14px;
   border-radius: 50%;
   background: #fff;
+  box-shadow: 0 1px 2px rgba(31, 29, 26, 0.2);
   transition: transform var(--transition);
 }
 
@@ -806,7 +838,7 @@ kbd {
 .quota-head {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
 }
 
@@ -816,7 +848,7 @@ kbd {
 
 .quota-bar {
   height: 4px;
-  background: var(--surface-active);
+  background: var(--well);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -856,6 +888,124 @@ kbd {
 
 #content::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
+}
+
+/* ── Stats ──────────────────────────────────────────── */
+
+#stats {
+  margin-bottom: 24px;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.stat-tile,
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 18px;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.stat-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.chart-card {
+  padding: 14px 16px 10px;
+  min-width: 0;
+}
+
+.chart-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.chart-title {
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.chart-sub {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.chart {
+  position: relative;
+  height: 120px;
+}
+
+.chart svg {
+  display: block;
+  overflow: visible;
+}
+
+.chart-axis { stroke: var(--border-strong); stroke-width: 1; }
+.chart-label { fill: var(--text-secondary); font-size: 11px; font-family: var(--font); }
+.chart-bar { fill: var(--accent); }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.chart-dot { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+.chart-crosshair { stroke: var(--text-tertiary); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-hit { fill: transparent; }
+.chart-hit:hover { fill: var(--accent-subtle); }
+
+.chart-tooltip {
+  position: absolute;
+  top: -8px;
+  transform: translateY(-100%);
+  padding: 6px 10px;
+  background: var(--text);
+  color: var(--surface);
+  border-radius: var(--radius);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.chart-tooltip[hidden] { display: none; }
+
+.chart-tooltip strong {
+  display: block;
+  font-weight: 600;
+}
+
+.chart-tooltip strong::first-letter {
+  text-transform: uppercase;
 }
 
 /* ── Selection ──────────────────────────────────────── */

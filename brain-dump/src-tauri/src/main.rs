@@ -2,7 +2,10 @@
 
 use std::path::PathBuf;
 use std::sync::Mutex;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager, PhysicalPosition, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tauri_plugin_updater::UpdaterExt;
 
@@ -11,6 +14,7 @@ use brain_dump_lib::history;
 use brain_dump_lib::quota;
 use brain_dump_lib::recorder::{failed_recording_path, Recorder, RecordingState, TranscribeMode};
 use brain_dump_lib::settings::Settings;
+use brain_dump_lib::stats;
 use brain_dump_lib::vocab;
 
 struct AppState {
@@ -159,6 +163,11 @@ fn get_history(state: State<AppState>) -> Vec<history::Entry> {
 }
 
 #[tauri::command]
+fn get_stats(state: State<AppState>) -> stats::Stats {
+    stats::load(&state.app_dir)
+}
+
+#[tauri::command]
 fn clear_history(state: State<AppState>) -> Result<(), String> {
     history::clear(&state.app_dir)
 }
@@ -250,6 +259,28 @@ fn quit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// Passed by the Windows startup entry: the app starts silently in the tray.
+const AUTOSTART_FLAG: &str = "--autostart";
+
+#[tauri::command]
+fn get_autostart(app: tauri::AppHandle) -> bool {
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn set_autostart(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let launcher = app.autolaunch();
+    if enabled { launcher.enable() } else { launcher.disable() }.map_err(|e| e.to_string())
+}
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+    }
+}
+
 #[tauri::command]
 fn update_hotkey(
     app: tauri::AppHandle,
@@ -323,6 +354,12 @@ fn main() {
     let hotkey_command = settings.hotkey_command.clone();
 
     tauri::Builder::default()
+        // Relancer Brain Dump alors qu'il tourne déjà dans la zone de notification rouvre la fenêtre
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![AUTOSTART_FLAG]),
+        ))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -339,6 +376,7 @@ fn main() {
             toggle_recording,
             get_quota_status,
             get_history,
+            get_stats,
             clear_history,
             copy_text,
             edit_history_entry,
@@ -350,6 +388,8 @@ fn main() {
             set_overlay_visible,
             reposition_overlay,
             quit_app,
+            get_autostart,
+            set_autostart,
         ])
         .setup(move |app| {
             // ---- Overlay window ----
@@ -401,16 +441,45 @@ fn main() {
                 Err(e) => eprintln!("[brain-dump] Failed to create overlay: {}", e),
             }
 
-            // ---- Main window : X = minimize to taskbar (keeps overlay + hotkeys alive) ----
+            // ---- Main window : X = hide to the tray (keeps overlay + hotkeys alive) ----
             if let Some(main_win) = app.get_webview_window("main") {
                 let main_clone = main_win.clone();
                 main_win.on_window_event(move |event| {
                     if let WindowEvent::CloseRequested { api, .. } = event {
                         api.prevent_close();
-                        let _ = main_clone.minimize();
+                        let _ = main_clone.hide();
                     }
                 });
+                // Au démarrage de Windows, on reste discret dans la zone de notification
+                if !std::env::args().any(|a| a == AUTOSTART_FLAG) {
+                    let _ = main_win.show();
+                }
             }
+
+            // ---- Tray icon ----
+            let open = MenuItem::with_id(app, "open", "Ouvrir Brain Dump", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quitter", true, None::<&str>)?;
+            TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .tooltip("Brain Dump")
+                .menu(&Menu::with_items(app, &[&open, &quit])?)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "open" => show_main_window(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        show_main_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
 
             // ---- Auto-update (release builds only) ----
             if !cfg!(debug_assertions) {

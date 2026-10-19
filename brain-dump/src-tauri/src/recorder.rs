@@ -14,6 +14,7 @@ use crate::quota::{self, CheckResult};
 use crate::selection;
 use crate::settings::Settings;
 use crate::snippets;
+use crate::stats;
 use crate::supabase;
 use crate::transcribe_groq;
 use crate::vocab;
@@ -98,6 +99,16 @@ impl Recorder {
         let _ = app.emit("recording-mode", kind);
         *state = RecordingState::Recording;
         let _ = app.emit("recording-state", RecordingState::Recording);
+
+        // Niveau micro en direct pour le voyant, tant que l'enregistrement dure
+        let (state_ref, audio, app) = (self.state.clone(), self.audio_recorder.clone(), app.clone());
+        std::thread::spawn(move || {
+            while *state_ref.lock().unwrap() == RecordingState::Recording {
+                let level = audio.lock().unwrap().level();
+                let _ = app.emit("mic-level", level);
+                std::thread::sleep(std::time::Duration::from_millis(60));
+            }
+        });
         Ok(())
     }
 
@@ -247,7 +258,8 @@ impl Recorder {
             }
         }
 
-        // Historique hors du chemin critique : le collage est déjà fait
+        // Historique et stats hors du chemin critique : le collage est déjà fait
+        record_stats(app, app_dir, cleaned.clone(), duration_ms);
         if settings.keep_history {
             save_history(app, app_dir, cleaned.clone(), raw_text, duration_ms, settings.capture_context);
         }
@@ -410,6 +422,19 @@ async fn finish_text(settings: &Settings, raw_text: &str) -> String {
 }
 
 /// Écrit l'entrée d'historique en tâche de fond et prévient l'UI.
+fn record_stats(app: &AppHandle, app_dir: &PathBuf, text: String, duration_ms: u64) {
+    let (app, app_dir) = (app.clone(), app_dir.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        let day = chrono::Local::now().format("%Y-%m-%d").to_string();
+        match stats::record(&app_dir, &day, &text, duration_ms) {
+            Ok(stats) => {
+                let _ = app.emit("stats-updated", &stats);
+            }
+            Err(e) => eprintln!("[brain-dump] Stats save failed: {}", e),
+        }
+    });
+}
+
 fn save_history(
     app: &AppHandle,
     app_dir: &PathBuf,

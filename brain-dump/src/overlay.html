@@ -69,11 +69,10 @@
         background: rgba(40, 12, 14, 0.92);
         border-color: rgba(255, 90, 95, 0.55);
       }
-      /* Little live equalizer while recording */
+      /* Niveau micro en direct pendant l'enregistrement (hauteurs pilotées par "mic-level") */
+      .pill.recording .icon { width: 22px; }
       .pill.recording .icon::before { display: none; }
-      .pill.recording .icon span { display: block; animation: eq 0.9s ease-in-out infinite; }
-      .pill.recording .icon span:nth-child(2) { animation-delay: -0.3s; }
-      .pill.recording .icon span:nth-child(3) { animation-delay: -0.6s; }
+      .pill.recording .icon span { display: block; height: 3px; transition: height 80ms linear; }
 
       .pill.transcribing { --tint: 251, 191, 36; }
       .pill.transcribing .icon::before {
@@ -113,10 +112,6 @@
       }
       .pill.repositioning:active { cursor: grabbing; }
 
-      @keyframes eq {
-        0%, 100% { height: 4px; }
-        50% { height: 13px; }
-      }
       @keyframes spin {
         to { transform: rotate(360deg); }
       }
@@ -128,7 +123,7 @@
   </head>
   <body>
     <div class="pill ready" id="pill" data-tauri-drag-region>
-      <span class="icon"><span></span><span></span><span></span></span>
+      <span class="icon"><span></span><span></span><span></span><span></span><span></span></span>
       <span id="label">Prêt</span>
     </div>
 
@@ -232,6 +227,17 @@
         else if (s === "Ready" && !FLASH_CLASSES.some((c) => pill.classList.contains(c))) {
           setState("ready", "Prêt");
         }
+      });
+
+      // Barre centrale la plus haute, les autres suivent avec un léger décalage pour paraître vivantes
+      const bars = [...document.querySelectorAll(".icon span")];
+      const BAR_WEIGHTS = [0.55, 0.8, 1, 0.8, 0.55];
+      listen("mic-level", (event) => {
+        const level = event.payload;
+        bars.forEach((bar, i) => {
+          const jitter = 0.85 + Math.random() * 0.3;
+          bar.style.height = `${3 + Math.min(1, level * BAR_WEIGHTS[i] * jitter) * 11}px`;
+        });
       });
 
       listen("paste-done", () => flash("pasted", "✓ Collé", 1800));

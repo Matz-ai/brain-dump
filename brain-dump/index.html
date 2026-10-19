@@ -85,6 +85,41 @@
             <h2 class="section-title">Historique</h2>
             <p class="section-desc">Tes 100 dernières dictées, gardées sur cet ordinateur. Corrige un mot : Brain Dump propose de l'apprendre.</p>
           </div>
+          <div id="stats">
+            <div class="stat-tiles">
+              <div class="stat-tile">
+                <span class="stat-label">Mots dictés</span>
+                <span class="stat-value" id="stat-words">0</span>
+                <span class="stat-sub" id="stat-words-today"></span>
+              </div>
+              <div class="stat-tile">
+                <span class="stat-label">Vitesse moyenne</span>
+                <span class="stat-value" id="stat-wpm">–</span>
+                <span class="stat-sub">mots par minute</span>
+              </div>
+              <div class="stat-tile" title="Comparé à une frappe au clavier à 40 mots par minute">
+                <span class="stat-label">Temps gagné</span>
+                <span class="stat-value" id="stat-saved">–</span>
+                <span class="stat-sub">par rapport au clavier</span>
+              </div>
+            </div>
+            <div class="stat-charts">
+              <div class="chart-card">
+                <div class="chart-head">
+                  <span class="chart-title">Mots par jour</span>
+                  <span class="chart-sub">14 derniers jours</span>
+                </div>
+                <div class="chart" id="chart-words"></div>
+              </div>
+              <div class="chart-card">
+                <div class="chart-head">
+                  <span class="chart-title">Vitesse</span>
+                  <span class="chart-sub">mots / minute, par jour</span>
+                </div>
+                <div class="chart" id="chart-wpm"></div>
+              </div>
+            </div>
+          </div>
           <div class="settings-list">
             <div class="setting-row">
               <div class="setting-label">
@@ -153,6 +188,20 @@
                   <button id="mode-toggle" class="toggle-btn active">Bascule</button>
                   <button id="mode-ptt" class="toggle-btn">Maintenir</button>
                 </div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-list">
+            <div class="setting-row">
+              <div class="setting-label">
+                <span class="label-text">Lancer au démarrage de Windows</span>
+                <span class="label-hint">Brain Dump démarre discrètement dans la zone de notification, prêt à dicter.</span>
+              </div>
+              <div class="setting-control">
+                <label class="switch">
+                  <input type="checkbox" id="autostart" />
+                  <span class="switch-track"></span>
+                </label>
               </div>
             </div>
           </div>
