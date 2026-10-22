@@ -239,18 +239,10 @@ impl Recorder {
             }
         }
 
-        // Paste — toujours (les 2 modes pastent). Le presse-papiers d'origine est rendu ensuite ;
-        // si le collage échoue, la dictée y reste pour un Ctrl+V à la main.
-        let backup = selection::backup_clipboard();
+        // Paste — toujours (les 2 modes pastent). La dictée reste dans le presse-papiers.
         match paste_text(&cleaned) {
             Ok(_) => {
                 let _ = app.emit("paste-done", &cleaned);
-                let pasted = cleaned.clone();
-                tauri::async_runtime::spawn_blocking(move || {
-                    // L'app cible lit le presse-papiers après le Ctrl+V : on attend avant de le restaurer
-                    std::thread::sleep(std::time::Duration::from_millis(400));
-                    selection::restore_clipboard_if_holds(backup, &pasted);
-                });
             }
             Err(e) => {
                 eprintln!("[brain-dump] Paste failed: {}", e);
@@ -312,8 +304,8 @@ impl Recorder {
     }
 
     /// Mode commande : la sélection est copiée pendant que l'instruction est transcrite (sans
-    /// correction IA), puis remplacée par la réponse du LLM. Le presse-papiers d'origine est
-    /// toujours restauré ; en cas d'échec le texte sélectionné n'est pas touché.
+    /// correction IA), puis remplacée par la réponse du LLM, qui reste dans le presse-papiers.
+    /// En cas d'échec le presse-papiers d'origine est restauré et la sélection n'est pas touchée.
     async fn run_command(
         &self,
         app: &AppHandle,
@@ -361,15 +353,9 @@ impl Recorder {
         match outcome {
             Ok(Some(result)) => {
                 let pasted = result.clone();
-                let paste = tauri::async_runtime::spawn_blocking(move || {
-                    let res = paste_text(&pasted);
-                    // L'app cible lit le presse-papiers après le Ctrl+V : on attend avant de le restaurer
-                    std::thread::sleep(std::time::Duration::from_millis(400));
-                    selection::restore_clipboard(backup);
-                    res
-                })
-                .await
-                .map_err(|e| e.to_string())?;
+                let paste = tauri::async_runtime::spawn_blocking(move || paste_text(&pasted))
+                    .await
+                    .map_err(|e| e.to_string())?;
                 match paste {
                     Ok(_) => {
                         let _ = app.emit("paste-done", &result);
